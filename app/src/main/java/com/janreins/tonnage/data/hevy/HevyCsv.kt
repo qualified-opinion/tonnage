@@ -39,7 +39,7 @@ object HevyCsv {
     private const val MILE_TO_KM = 1.609344
 
     fun parse(text: String, timeZone: TimeZone = TimeZone.getDefault()): List<HevyWorkout> {
-        val rows = parseRows(text.removePrefix("﻿")).filter { row -> row.any { it.isNotBlank() } }
+        val rows = parseRows(text.removePrefix("\uFEFF")).filter { row -> row.any { it.isNotBlank() } }
         if (rows.isEmpty()) throw HevyFormatException("The file is empty.")
         val header = rows.first().map { it.trim().lowercase(Locale.US) }
         fun column(vararg names: String): Int? = names.firstNotNullOfOrNull { name -> header.indexOf(name).takeIf { it >= 0 } }
