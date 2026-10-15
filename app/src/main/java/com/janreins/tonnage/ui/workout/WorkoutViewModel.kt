@@ -1,0 +1,211 @@
+package com.janreins.tonnage.ui.workout
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.local.AppDatabase
+import com.janreins.tonnage.data.model.SetType
+import com.janreins.tonnage.data.model.Workout
+import com.janreins.tonnage.data.model.WorkoutSet
+import com.janreins.tonnage.data.repository.ActiveWorkout
+import com.janreins.tonnage.data.repository.WorkoutRepository
+import com.janreins.tonnage.data.settings.SettingsStore
+import com.janreins.tonnage.domain.ExerciseBlock
+import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.SessionSummary
+import com.janreins.tonnage.domain.WorkoutStats
+import com.janreins.tonnage.service.WorkoutService
+import com.janreins.tonnage.timer.RestTimer
+import com.janreins.tonnage.timer.WorkoutSession
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+/** Shown before saving: totals for the session and any records it set. */
+data class FinishPreview(val summary: SessionSummary, val records: List<PersonalRecord>)
+
+class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val db = AppDatabase.getInstance(application)
+    private val repository = WorkoutRepository(db.workoutDao(), db.exerciseDao())
+    private val settings = SettingsStore.get(application)
+
+    /** False until the database has answered whether a workout is active. */
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
+    val active: StateFlow<ActiveWorkout?> = repository.observeActive()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** An unfinished workout found after the app was killed, waiting for resume or discard. */
+    private val _pendingResume = MutableStateFlow<Workout?>(null)
+    val pendingResume: StateFlow<Workout?> = _pendingResume.asStateFlow()
+
+    private val _finishPreview = MutableStateFlow<FinishPreview?>(null)
+    val finishPreview: StateFlow<FinishPreview?> = _finishPreview.asStateFlow()
+
+    val restTimer: StateFlow<RestTimer.State?> = RestTimer.state
+
+    init {
+        viewModelScope.launch {
+            val existing = repository.getActive()
+            if (existing != null && !WorkoutSession.confirmedInThisProcess) {
+                _pendingResume.value = existing
+            } else if (existing != null) {
+                startService()
+            }
+            _loaded.value = true
+        }
+        // Keep the ongoing notification in step with the workout.
+        viewModelScope.launch {
+            combine(active, _pendingResume) { workout, pending -> workout to pending }.collect { (workout, pending) ->
+                WorkoutSession.info.value = if (workout != null && pending == null) {
+                    WorkoutSession.Info(
+                        title = workout.workout.title,
+                        startedAt = workout.workout.startedAt,
+                        completedSets = workout.blocks.sumOf { block -> block.sets.count { it.completed } },
+                    )
+                } else {
+                    null
+                }
+            }
+        }
+    }
+
+    private fun startService() {
+        WorkoutSession.confirmedInThisProcess = true
+        WorkoutService.start(getApplication())
+    }
+
+    fun startEmptyWorkout() {
+        viewModelScope.launch {
+            repository.startEmpty()
+            _pendingResume.value = null
+            startService()
+        }
+    }
+
+    fun resumePending() {
+        _pendingResume.value = null
+        startService()
+    }
+
+    fun discardPending() {
+        val workout = _pendingResume.value ?: return
+        viewModelScope.launch {
+            repository.discard(workout.id)
+            _pendingResume.value = null
+        }
+    }
+
+    fun rename(title: String) {
+        val workout = active.value?.workout ?: return
+        viewModelScope.launch { repository.rename(workout.id, title) }
+    }
+
+    fun addExercises(exerciseIds: List<String>) {
+        val workout = active.value?.workout ?: return
+        if (exerciseIds.isEmpty()) return
+        viewModelScope.launch {
+            repository.addExercises(workout.id, exerciseIds, settings.defaultRestSeconds.value)
+        }
+    }
+
+    fun removeExercise(block: ExerciseBlock) {
+        viewModelScope.launch { repository.removeExercise(block.workoutExercise.id) }
+    }
+
+    fun setRest(block: ExerciseBlock, seconds: Int) {
+        viewModelScope.launch { repository.setRest(block.workoutExercise.id, seconds) }
+    }
+
+    fun addSet(block: ExerciseBlock) {
+        viewModelScope.launch { repository.addSet(block.workoutExercise.id) }
+    }
+
+    fun deleteSet(set: WorkoutSet) {
+        viewModelScope.launch { repository.deleteSet(set.id) }
+    }
+
+    fun setType(set: WorkoutSet, type: SetType) {
+        viewModelScope.launch { repository.setType(set.id, type) }
+    }
+
+    fun setWeight(set: WorkoutSet, kg: Double?) {
+        viewModelScope.launch { repository.setWeight(set.id, kg) }
+    }
+
+    fun setReps(set: WorkoutSet, reps: Int?) {
+        viewModelScope.launch { repository.setReps(set.id, reps) }
+    }
+
+    fun setDistance(set: WorkoutSet, km: Double?) {
+        viewModelScope.launch { repository.setDistance(set.id, km) }
+    }
+
+    fun setDuration(set: WorkoutSet, seconds: Int?) {
+        viewModelScope.launch { repository.setDuration(set.id, seconds) }
+    }
+
+    /** Ticks a set off (starting the rest timer) or un-ticks it. */
+    fun toggleCompleted(block: ExerciseBlock, set: WorkoutSet) {
+        val completing = !set.completed
+        viewModelScope.launch { repository.setCompleted(set.id, completing) }
+        if (completing) {
+            val blocks = active.value?.blocks.orEmpty().map { b ->
+                if (b.workoutExercise.id == block.workoutExercise.id) {
+                    b.copy(sets = b.sets.map { if (it.id == set.id) it.copy(completed = true) else it })
+                } else {
+                    b
+                }
+            }
+            RestTimer.start(block.workoutExercise.restSeconds, block.name, WorkoutStats.nextSetLabel(blocks, set.id))
+        }
+    }
+
+    fun adjustRest(seconds: Int) = RestTimer.adjust(seconds)
+    fun skipRest() = RestTimer.skip()
+
+    fun prepareFinish() {
+        val current = active.value ?: return
+        viewModelScope.launch {
+            _finishPreview.value = FinishPreview(
+                summary = WorkoutStats.summarize(current.blocks, current.workout.startedAt, System.currentTimeMillis()),
+                records = repository.recordsFor(current),
+            )
+        }
+    }
+
+    fun cancelFinish() {
+        _finishPreview.value = null
+    }
+
+    fun finish(onSaved: () -> Unit) {
+        val workout = active.value?.workout ?: return
+        viewModelScope.launch {
+            repository.finish(workout.id)
+            endSession()
+            onSaved()
+        }
+    }
+
+    fun discard() {
+        val workout = active.value?.workout ?: return
+        viewModelScope.launch {
+            repository.discard(workout.id)
+            endSession()
+        }
+    }
+
+    private fun endSession() {
+        _finishPreview.value = null
+        RestTimer.skip()
+        WorkoutSession.info.value = null
+        WorkoutSession.confirmedInThisProcess = false
+        WorkoutService.stop(getApplication())
+    }
+}

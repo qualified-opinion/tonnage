@@ -43,5 +43,6 @@ class ExerciseRepository(private val dao: ExerciseDao) {
         return exercise
     }
 
-    suspend fun deleteCustom(id: String) = dao.deleteCustom(id)
+    /** Returns false when the exercise is used in a workout and was kept. */
+    suspend fun deleteCustom(id: String): Boolean = dao.deleteCustom(id) > 0
 }

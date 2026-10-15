@@ -6,15 +6,20 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 
 ## What's in it so far
 
-- **Exercises**: 876 exercises bundled from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain), searchable by name (`db`, `bb`, `kb`, `ohp`, `rdl` shorthands work) and filterable by muscle, equipment or custom-only. Each has muscles, equipment and step-by-step instructions. Add your own custom exercises with the + button.
-- Workout, History, Progress and Settings tabs are placeholders for the next phases (see the plan below).
+- **Workout logging**: start an empty workout, add exercises (multi-select from the library), and log sets with weight and reps (or reps, time, or distance and time, depending on the exercise). Tap the set number to mark it as a warm-up, drop set or failure set, or to delete it. "Add set" copies the previous set's numbers.
+- **Saved as you go**: every change is written to the phone's database immediately, so a workout survives the app being closed, killed or the phone restarting. When you reopen the app after that, it offers to resume or discard the unfinished workout.
+- **Rest timer**: ticking off a set starts the exercise's rest timer (default 1:30, changeable per exercise and in Settings). It keeps counting with the screen locked, shows in a notification with +15s / Skip / Open buttons, and vibrates when time is up.
+- **Ongoing-workout notification**: shows the workout's running time and sets done, so you can jump back in from the lock screen.
+- **Finish summary**: duration, sets, volume (warm-ups excluded) and any new records (heaviest weight, best estimated 1RM using Epley, most reps for bodyweight exercises) before saving. Unticked sets are dropped.
+- **History**: a list of finished workouts with duration, sets and volume.
+- **Exercises**: 876 exercises bundled from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain), searchable by name (`db`, `bb`, `kb`, `ohp`, `rdl` shorthands work) and filterable by muscle, equipment or custom-only. Add your own with the + button.
 
 ## Roadmap
 
 | Phase | What you get |
 |---|---|
-| 0–1 (this) | App skeleton, APK build, exercise library |
-| 2 | Log a workout, rest timer that works with the screen locked, unfinished workouts survive app kills |
+| 0–1 | App skeleton, APK build, exercise library |
+| 2 (this) | Log a workout, rest timer that works with the screen locked, unfinished workouts survive app kills |
 | 3 | Routines and "previous" values while logging |
 | 4 | History, edit/delete, personal records |
 | 5 | Hevy CSV import and JSON backup/restore |

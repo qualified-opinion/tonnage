@@ -57,7 +57,7 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch { repository.addCustom(name, primaryMuscle, equipment, trackingType) }
     }
 
-    fun deleteCustom(id: String) {
-        viewModelScope.launch { repository.deleteCustom(id) }
+    fun deleteCustom(id: String, onResult: (deleted: Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.deleteCustom(id)) }
     }
 }
