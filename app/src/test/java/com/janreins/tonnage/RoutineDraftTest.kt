@@ -2,6 +2,9 @@ package com.janreins.tonnage
 
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.SetType
+import com.janreins.tonnage.data.model.WorkoutExercise
+import com.janreins.tonnage.data.model.WorkoutSet
+import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.ui.routines.RoutineDraft
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -63,5 +66,26 @@ class RoutineDraftTest {
         assertEquals(listOf(0, 1), entities.map { it.first.position })
         assertEquals(listOf(60, 60), entities.map { it.first.restSeconds })
         assertEquals(listOf(1, 1), entities.map { it.second.size })
+    }
+
+    @Test
+    fun aWorkoutCanBecomeARoutine() {
+        val bench = Exercise(id = "bench", name = "Bench Press", category = "strength", equipment = "barbell", primaryMuscles = "chest")
+        val block = ExerciseBlock(
+            WorkoutExercise(id = 9, workoutId = 1, exerciseId = "bench", position = 0, restSeconds = 150),
+            bench,
+            listOf(
+                WorkoutSet(id = 1, workoutExerciseId = 9, position = 0, type = SetType.WARMUP, weightKg = 40.0, reps = 10, completed = true),
+                WorkoutSet(id = 2, workoutExerciseId = 9, position = 1, weightKg = 80.0, reps = 8, completed = true),
+            ),
+        )
+
+        val draft = RoutineDraft.fromBlocks("Push A", listOf(block), nextKey)
+        assertEquals(0L, draft.id)
+        assertTrue(draft.canSave)
+        val exercise = draft.exercises.single()
+        assertEquals(150, exercise.restSeconds)
+        assertEquals(listOf(SetType.WARMUP, SetType.NORMAL), exercise.sets.map { it.type })
+        assertEquals(80.0 to 8, exercise.sets[1].weightKg to exercise.sets[1].reps)
     }
 }

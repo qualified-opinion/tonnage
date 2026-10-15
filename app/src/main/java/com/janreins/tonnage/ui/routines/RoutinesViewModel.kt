@@ -54,6 +54,11 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         _editor.value = RoutineEditor(draft, draft)
     }
 
+    /** Opens the editor on a new routine copied from a workout; closing asks before discarding it. */
+    fun newFromWorkout(name: String, blocks: List<ExerciseBlock>) {
+        _editor.value = RoutineEditor(original = RoutineDraft(), draft = RoutineDraft.fromBlocks(name, blocks, ::nextKey))
+    }
+
     fun edit(routineId: Long) {
         viewModelScope.launch {
             val contents = repository.load(routineId) ?: return@launch

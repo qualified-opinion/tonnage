@@ -456,7 +456,7 @@ private fun FinishDialog(preview: FinishPreview, onSave: () -> Unit, onDiscard: 
 }
 
 @Composable
-private fun RecordLine(record: PersonalRecord) {
+fun RecordLine(record: PersonalRecord) {
     fun value(v: Double) = when (record.kind) {
         PrKind.MOST_REPS -> "${v.toInt()} reps"
         else -> "${Format.number(v)} kg"

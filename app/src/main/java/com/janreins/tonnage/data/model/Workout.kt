@@ -96,6 +96,19 @@ data class WorkoutSummary(
     val volumeKg: Double,
 )
 
+/** A completed working set of a finished workout, in date order, for working out records over all history. */
+data class RecordSet(
+    val workoutId: Long,
+    val startedAt: Long,
+    val exerciseId: String,
+    val exerciseName: String?,
+    /** Stored name of the exercise's [TrackingType]; null if the exercise is missing. */
+    val trackingType: String?,
+    val setId: Long,
+    val weightKg: Double?,
+    val reps: Int?,
+)
+
 /** A completed working set from an earlier finished workout, used for personal records. */
 data class PastSet(
     val exerciseId: String,
