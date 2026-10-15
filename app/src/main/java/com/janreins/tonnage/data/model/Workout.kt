@@ -109,6 +109,25 @@ data class RecordSet(
     val reps: Int?,
 )
 
+/**
+ * A completed working set (warm-ups left out) of a finished workout, with what the Progress tab
+ * needs to chart it and count it towards muscles and milestones.
+ */
+data class ProgressSet(
+    val workoutId: Long,
+    val startedAt: Long,
+    val exerciseId: String,
+    val exerciseName: String?,
+    /** Stored name of the exercise's [TrackingType]; null if the exercise is missing. */
+    val trackingType: String?,
+    /** Comma-separated, as stored on [Exercise]; null if the exercise is missing. */
+    val primaryMuscles: String?,
+    val weightKg: Double?,
+    val reps: Int?,
+    val distanceKm: Double?,
+    val durationSec: Int?,
+)
+
 /** A completed working set from an earlier finished workout, used for personal records. */
 data class PastSet(
     val exerciseId: String,

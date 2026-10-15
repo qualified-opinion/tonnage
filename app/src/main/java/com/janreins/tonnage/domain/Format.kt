@@ -16,6 +16,9 @@ object Format {
 
     fun volume(kg: Double): String = "${grouped.format(kg)} kg"
 
+    /** 1500 -> "1,500". */
+    fun count(n: Int): String = grouped.format(n)
+
     /** Accepts "62.5" or "62,5"; blank or invalid gives null. */
     fun parseDecimal(text: String): Double? =
         text.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }

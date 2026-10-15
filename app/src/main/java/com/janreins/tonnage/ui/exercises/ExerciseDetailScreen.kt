@@ -27,11 +27,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.ExerciseOptions
+import com.janreins.tonnage.domain.ExerciseSession
+import com.janreins.tonnage.ui.progress.ExerciseProgressSection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseDetailScreen(
     exercise: Exercise?,
+    progress: List<ExerciseSession>,
     onBack: () -> Unit,
     onDelete: (Exercise) -> Unit,
     modifier: Modifier = Modifier,
@@ -63,6 +66,9 @@ fun ExerciseDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            if (progress.isNotEmpty()) {
+                item { ExerciseProgressSection(progress, exercise.trackingType) }
+            }
             item { Fact("Primary muscles", exercise.primaryMuscleList.joinToString(", ") { ExerciseOptions.display(it) }) }
             if (exercise.secondaryMuscleList.isNotEmpty()) {
                 item { Fact("Secondary muscles", exercise.secondaryMuscleList.joinToString(", ") { ExerciseOptions.display(it) }) }
