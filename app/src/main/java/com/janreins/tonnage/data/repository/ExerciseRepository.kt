@@ -1,0 +1,47 @@
+package com.janreins.tonnage.data.repository
+
+import android.content.Context
+import com.janreins.tonnage.data.local.ExerciseDao
+import com.janreins.tonnage.data.local.ExerciseSeed
+import com.janreins.tonnage.data.model.Exercise
+import com.janreins.tonnage.data.model.TrackingType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
+import java.util.UUID
+
+class ExerciseRepository(private val dao: ExerciseDao) {
+
+    fun observeAll(): Flow<List<Exercise>> = dao.observeAll()
+
+    fun observe(id: String): Flow<Exercise?> = dao.observeById(id)
+
+    /** Loads the bundled library on first launch. Safe to call every launch. */
+    suspend fun seedIfEmpty(context: Context) = withContext(Dispatchers.IO) {
+        if (dao.builtInCount() > 0) return@withContext
+        val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
+        dao.insertAll(ExerciseSeed.parse(json))
+    }
+
+    suspend fun addCustom(
+        name: String,
+        primaryMuscle: String,
+        equipment: String,
+        trackingType: TrackingType,
+    ): Exercise {
+        val exercise = Exercise(
+            id = "custom-" + UUID.randomUUID(),
+            name = name.trim(),
+            category = "custom",
+            equipment = equipment,
+            primaryMuscles = primaryMuscle,
+            trackingType = trackingType,
+            isCustom = true,
+            createdAt = System.currentTimeMillis(),
+        )
+        dao.insert(exercise)
+        return exercise
+    }
+
+    suspend fun deleteCustom(id: String) = dao.deleteCustom(id)
+}
