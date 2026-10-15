@@ -15,6 +15,9 @@ interface ExerciseDao {
     @Query("SELECT * FROM exercises WHERE id = :id")
     fun observeById(id: String): Flow<Exercise?>
 
+    @Query("SELECT * FROM exercises WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<Exercise>
+
     @Query("SELECT COUNT(*) FROM exercises WHERE isCustom = 0")
     suspend fun builtInCount(): Int
 
@@ -24,6 +27,12 @@ interface ExerciseDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(exercise: Exercise)
 
-    @Query("DELETE FROM exercises WHERE id = :id AND isCustom = 1")
-    suspend fun deleteCustom(id: String)
+    /** Deletes a custom exercise unless a workout uses it. Returns the number of rows deleted. */
+    @Query(
+        """
+        DELETE FROM exercises WHERE id = :id AND isCustom = 1
+        AND id NOT IN (SELECT exerciseId FROM workout_exercises)
+        """,
+    )
+    suspend fun deleteCustom(id: String): Int
 }

@@ -18,5 +18,8 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Offline Integrity**: Do not add network calls, remote API integrations, or cloud sync services.
 - **Units**: Store weights in kg; converting to lb is display-only.
 - **Schema changes**: Any Room entity change needs a version bump and a migration with a test. Never use destructive migration; users' workout history must survive updates.
+- **Active workout**: a `workouts` row with `endedAt = null`. Every edit goes straight to Room (`WorkoutRepository`), so nothing lives only in memory. `WorkoutSession.confirmedInThisProcess` decides whether to show the resume/discard prompt after process death.
+- **Rest timer**: `timer/RestTimer` holds the countdown (elapsed-realtime clock); `service/WorkoutService` is a `specialUse` foreground service that waits it out under a partial wake lock and vibrates/notifies when it ends. Keep the wake lock bounded by the rest length.
+- **Room migrations**: `MigrationTest` builds the previous schema by hand and opens it with the current app; add a case there for every new migration.
 - Navigation is a simple tab enum (`ui/state/MainTab`) plus screen state in `MainActivity`, as in Piso.
 - Plan and acceptance notes for later phases live in the project files (`workout-app/plan.md`, `workout-app/implementation-notes.md`).
