@@ -50,7 +50,7 @@ Every push to any branch runs the **Android CI** workflow, which runs the unit t
 
 #### Publishing a release APK
 
-Push a tag such as `v0.1.0` and the **Android Release** workflow attaches `Tonnage-0.1.0.apk` to a GitHub Release. To sign with your own key, add the `TONNAGE_KEYSTORE_BASE64`, `TONNAGE_KEYSTORE_PASSWORD`, `TONNAGE_KEY_ALIAS` and `TONNAGE_KEY_PASSWORD` repository secrets; without them the APK is signed with a temporary debug key.
+On GitHub, open **Actions → Android Release → Run workflow**, type a version such as `1.0.0` and run it: the workflow tags the commit `v1.0.0` and publishes a GitHub Release with `Tonnage-1.0.0.apk` attached. Pushing a tag such as `v1.0.0` does the same. A published release must be signed with your own key, so the run stops if the signing secrets are missing. To sign with your own key, add the `TONNAGE_KEYSTORE_BASE64`, `TONNAGE_KEYSTORE_PASSWORD`, `TONNAGE_KEY_ALIAS` and `TONNAGE_KEY_PASSWORD` repository secrets; without them the APK is signed with a temporary debug key.
 
 ### Option B: Android Studio
 

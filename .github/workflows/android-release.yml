@@ -2,7 +2,9 @@ name: Android Release
 
 # Builds a release APK.
 #   - Push a tag like v1.0.0  -> builds and attaches the APK to a GitHub Release.
-#   - Run manually (Actions tab -> Android Release -> Run workflow) -> APK available as an artifact.
+#   - Run manually (Actions tab -> Android Release -> Run workflow) with a version such as 1.0.0
+#     -> tags the commit v1.0.0 and publishes the GitHub Release with the APK.
+#   - Run manually with the version left blank -> APK available as an artifact only.
 #
 # Signing: add these repository secrets (Settings -> Secrets and variables -> Actions) to sign
 # with your own key. Without them the APK is signed with a throwaway debug key (see README).
@@ -14,6 +16,11 @@ on:
   push:
     tags: [ "v*" ]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish, e.g. 1.0.0 (leave blank to just build the APK)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -40,9 +47,19 @@ jobs:
         run: chmod +x gradlew
 
       - name: Work out version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
+          INPUT_VERSION="${INPUT_VERSION#v}"
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION_NAME="${GITHUB_REF_NAME#v}"
+          elif [ -n "$INPUT_VERSION" ]; then
+            if ! [[ "$INPUT_VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
+              echo "::error::Version must look like 1.0.0, got '$INPUT_VERSION'."
+              exit 1
+            fi
+            VERSION_NAME="$INPUT_VERSION"
+            echo "TONNAGE_RELEASE_TAG=v${VERSION_NAME}" >> "$GITHUB_ENV"
           else
             VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
           fi
@@ -65,6 +82,9 @@ jobs:
               echo "TONNAGE_KEY_PASSWORD=$KEY_PASSWORD"
             } >> "$GITHUB_ENV"
             echo "Signing with the release keystore from repository secrets."
+          elif [ -n "${TONNAGE_RELEASE_TAG:-}" ] || [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "::error::TONNAGE_KEYSTORE_BASE64 is not set - a published release must be signed with your own key."
+            exit 1
           else
             echo "::warning::TONNAGE_KEYSTORE_BASE64 is not set - the APK will be signed with a temporary debug key and cannot be installed over a differently signed build."
           fi
@@ -94,3 +114,15 @@ jobs:
         with:
           files: dist/*.apk
           generate_release_notes: true
+
+      # A manual run with a version creates the tag on the commit it built, then the release.
+      - name: Publish GitHub Release (manual run)
+        if: env.TONNAGE_RELEASE_TAG != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TONNAGE_RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: Tonnage ${{ env.TONNAGE_VERSION_NAME }}
+          files: dist/*.apk
+          generate_release_notes: true
+          fail_on_unmatched_files: true
