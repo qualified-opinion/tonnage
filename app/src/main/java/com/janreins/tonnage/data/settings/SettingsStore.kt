@@ -6,6 +6,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Light or dark look; [SYSTEM] follows the phone's setting. */
+enum class ThemeMode(val label: String) {
+    SYSTEM("Same as phone"),
+    LIGHT("Light"),
+    DARK("Dark"),
+    ;
+
+    companion object {
+        fun fromStored(value: String?): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
+    }
+}
+
 class SettingsStore private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
@@ -17,10 +29,19 @@ class SettingsStore private constructor(context: Context) {
         _defaultRestSeconds.value = seconds
     }
 
+    private val _themeMode = MutableStateFlow(ThemeMode.fromStored(prefs.getString(KEY_THEME, null)))
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit { putString(KEY_THEME, mode.name) }
+        _themeMode.value = mode
+    }
+
     companion object {
         const val DEFAULT_REST_SECONDS = 90
         val REST_OPTIONS = listOf(0, 30, 45, 60, 90, 120, 150, 180, 240, 300)
         private const val KEY_REST = "default_rest_seconds"
+        private const val KEY_THEME = "theme_mode"
 
         @Volatile
         private var instance: SettingsStore? = null

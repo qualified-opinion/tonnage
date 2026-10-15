@@ -7,9 +7,9 @@
     <!-- bar -->
     <path android:fillColor="#FFF2F2F2" android:pathData="M40,51h28v6h-28z" />
     <!-- inner plates -->
-    <path android:fillColor="#FFFF7A1A" android:pathData="M33,38h7v32h-7z" />
-    <path android:fillColor="#FFFF7A1A" android:pathData="M68,38h7v32h-7z" />
+    <path android:fillColor="#FF4CC27A" android:pathData="M33,38h7v32h-7z" />
+    <path android:fillColor="#FF4CC27A" android:pathData="M68,38h7v32h-7z" />
     <!-- outer plates -->
-    <path android:fillColor="#FFFF7A1A" android:pathData="M27,44h5v20h-5z" />
-    <path android:fillColor="#FFFF7A1A" android:pathData="M76,44h5v20h-5z" />
+    <path android:fillColor="#FF4CC27A" android:pathData="M27,44h5v20h-5z" />
+    <path android:fillColor="#FF4CC27A" android:pathData="M76,44h5v20h-5z" />
 </vector>

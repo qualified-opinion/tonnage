@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
@@ -37,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.settings.SettingsStore
+import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.ui.data.BackupState
 import java.text.SimpleDateFormat
@@ -57,6 +59,8 @@ class DataActions(
 fun SettingsScreen(
     defaultRestSeconds: Int,
     onDefaultRestChange: (Int) -> Unit,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     backupState: BackupState?,
     data: DataActions,
     modifier: Modifier = Modifier,
@@ -87,6 +91,24 @@ fun SettingsScreen(
                         DropdownMenuItem(
                             text = { Text(Format.restSeconds(seconds)) },
                             onClick = { open = false; onDefaultRestChange(seconds) },
+                        )
+                    }
+                }
+            }
+            var themeOpen by remember { mutableStateOf(false) }
+            Box {
+                ListItem(
+                    modifier = Modifier.clickable { themeOpen = true },
+                    leadingContent = { Icon(Icons.Filled.Contrast, contentDescription = null) },
+                    headlineContent = { Text("Theme") },
+                    supportingContent = { Text("Light, dark, or the same as your phone") },
+                    trailingContent = { Text(themeMode.label, color = MaterialTheme.colorScheme.primary) },
+                )
+                DropdownMenu(expanded = themeOpen, onDismissRequest = { themeOpen = false }) {
+                    ThemeMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(mode.label) },
+                            onClick = { themeOpen = false; onThemeModeChange(mode) },
                         )
                     }
                 }

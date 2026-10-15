@@ -1,11 +1,14 @@
 package com.janreins.tonnage
 
+import android.graphics.Color
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -17,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.settings.SettingsStore
+import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.ui.data.DataViewModel
 import com.janreins.tonnage.ui.data.ImportScreen
@@ -60,9 +65,25 @@ private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT, IMPORT_MATCH
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        val settings = SettingsStore.get(this)
         setContent {
-            TonnageTheme {
+            val themeMode by settings.themeMode.collectAsStateWithLifecycle()
+            val darkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+            // Status and navigation bar icons follow the app's theme, not only the phone's.
+            DisposableEffect(darkTheme) {
+                val style = if (darkTheme) {
+                    SystemBarStyle.dark(Color.TRANSPARENT)
+                } else {
+                    SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                }
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                onDispose {}
+            }
+            TonnageTheme(darkTheme = darkTheme) {
                 TonnageApp()
             }
         }
@@ -237,9 +258,12 @@ private fun TonnageApp() {
                     }
                     MainTab.MORE -> {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
+                        val themeMode by settings.themeMode.collectAsStateWithLifecycle()
                         SettingsScreen(
                             defaultRestSeconds = restSeconds,
                             onDefaultRestChange = settings::setDefaultRestSeconds,
+                            themeMode = themeMode,
+                            onThemeModeChange = settings::setThemeMode,
                             backupState = backupState,
                             data = DataActions(
                                 onImportHevy = dataViewModel::startImport,

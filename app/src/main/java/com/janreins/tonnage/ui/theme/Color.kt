@@ -2,11 +2,11 @@ package com.janreins.tonnage.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Charcoal surfaces with an iron-orange accent; dark is the default look in the gym.
-val IronOrange = Color(0xFFFF7A1A)
-val IronOrangeDeep = Color(0xFFC85A00)
-val IronOrangeContainerDark = Color(0xFF4A2508)
-val IronOrangeContainerLight = Color(0xFFFFE3CF)
+// Charcoal (dark) or near-white (light) surfaces with a fresh green accent.
+val GymGreen = Color(0xFF4CC27A)
+val GymGreenDeep = Color(0xFF1B7A45)
+val GymGreenContainerDark = Color(0xFF113D25)
+val GymGreenContainerLight = Color(0xFFC8F0D6)
 val SteelBlue = Color(0xFF7FA7C9)
 
 val BackgroundDark = Color(0xFF121316)
