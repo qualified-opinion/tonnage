@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import com.janreins.tonnage.data.model.PastSet
+import com.janreins.tonnage.data.model.ProgressSet
 import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
@@ -238,6 +239,21 @@ abstract class WorkoutDao {
         """,
     )
     abstract fun observeRecordSets(): Flow<List<RecordSet>>
+
+    @Query(
+        """
+        SELECT w.id AS workoutId, w.startedAt AS startedAt, we.exerciseId AS exerciseId,
+               e.name AS exerciseName, e.trackingType AS trackingType, e.primaryMuscles AS primaryMuscles,
+               ws.weightKg AS weightKg, ws.reps AS reps, ws.distanceKm AS distanceKm, ws.durationSec AS durationSec
+        FROM workout_sets ws
+        INNER JOIN workout_exercises we ON ws.workoutExerciseId = we.id
+        INNER JOIN workouts w ON we.workoutId = w.id
+        LEFT JOIN exercises e ON e.id = we.exerciseId
+        WHERE w.endedAt IS NOT NULL AND ws.completed = 1 AND ws.type != 'WARMUP'
+        ORDER BY w.startedAt, w.id, we.position, ws.position
+        """,
+    )
+    abstract fun observeProgressSets(): Flow<List<ProgressSet>>
 
     @Query(
         """

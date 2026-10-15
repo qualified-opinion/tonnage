@@ -40,9 +40,10 @@ import com.janreins.tonnage.ui.exercises.PickerMode
 import com.janreins.tonnage.ui.history.HistoryScreen
 import com.janreins.tonnage.ui.history.HistoryViewModel
 import com.janreins.tonnage.ui.history.WorkoutDetailScreen
+import com.janreins.tonnage.ui.progress.ProgressScreen
+import com.janreins.tonnage.ui.progress.ProgressViewModel
 import com.janreins.tonnage.ui.routines.RoutineEditorScreen
 import com.janreins.tonnage.ui.routines.RoutinesViewModel
-import com.janreins.tonnage.ui.components.ComingSoon
 import com.janreins.tonnage.ui.settings.DataActions
 import com.janreins.tonnage.ui.settings.SettingsScreen
 import com.janreins.tonnage.ui.state.MainTab
@@ -83,6 +84,7 @@ private fun TonnageApp() {
     val historyViewModel: HistoryViewModel = viewModel()
     val routinesViewModel: RoutinesViewModel = viewModel()
     val dataViewModel: DataViewModel = viewModel()
+    val progressViewModel: ProgressViewModel = viewModel()
     val settings = remember { SettingsStore.get(context) }
 
     val activeWorkout by workoutViewModel.active.collectAsStateWithLifecycle()
@@ -110,8 +112,10 @@ private fun TonnageApp() {
         exerciseId != null -> {
             BackHandler { openExerciseId = null }
             val exercise by remember(exerciseId) { exercisesViewModel.observeExercise(exerciseId) }.collectAsState(initial = null)
+            val sessions by remember(exerciseId) { progressViewModel.sessions(exerciseId) }.collectAsState(initial = emptyList())
             ExerciseDetailScreen(
                 exercise = exercise,
+                progress = sessions,
                 onBack = { openExerciseId = null },
                 onDelete = {
                     exercisesViewModel.deleteCustom(it.id) { deleted ->
@@ -227,12 +231,10 @@ private fun TonnageApp() {
                         onAddClick = { showAddExercise = true },
                         modifier = modifier,
                     )
-                    MainTab.PROGRESS -> ComingSoon(
-                        MainTab.PROGRESS.icon,
-                        "Progress",
-                        "Personal records, charts and milestones will show here.",
-                        modifier,
-                    )
+                    MainTab.PROGRESS -> {
+                        val overview by progressViewModel.overview.collectAsStateWithLifecycle()
+                        ProgressScreen(overview, progressViewModel, onOpenExercise = { openExerciseId = it }, modifier = modifier)
+                    }
                     MainTab.MORE -> {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
                         SettingsScreen(
