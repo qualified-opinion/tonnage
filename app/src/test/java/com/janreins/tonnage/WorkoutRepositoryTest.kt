@@ -8,6 +8,7 @@ import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
+import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.repository.ExerciseRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.domain.PrKind
@@ -159,5 +160,90 @@ class WorkoutRepositoryTest {
         assertFalse(exercises.deleteCustom(custom.id))
         workouts.discard(id)
         assertTrue(exercises.deleteCustom(custom.id))
+    }
+
+    /** Logs and finishes one workout with the given bench sets (weight, reps, ticked). */
+    private suspend fun finishBench(routineId: Long?, vararg sets: Triple<Double, Int, Boolean>): Long {
+        val id = if (routineId == null) {
+            workouts.startEmpty()
+        } else {
+            db.workoutDao().insertWorkout(Workout(title = "Routine", startedAt = now, routineId = routineId))
+        }
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val block = active().blocks.single()
+        repeat(sets.size - 1) { workouts.addSet(block.workoutExercise.id) }
+        active().blocks.single().sets.zip(sets).forEach { (set, values) ->
+            workouts.setWeight(set.id, values.first)
+            workouts.setReps(set.id, values.second)
+            workouts.setCompleted(set.id, values.third)
+        }
+        workouts.finish(id)
+        now += 86_400_000
+        return id
+    }
+
+    @Test
+    fun previousValuesAreTheLatestCompletedSets() = runTest {
+        finishBench(null, Triple(60.0, 10, true))
+        finishBench(null, Triple(80.0, 8, true), Triple(85.0, 6, false), Triple(82.5, 7, true))
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench", "squat"), restSeconds = 90)
+
+        val previous = workouts.previousSets(listOf("bench", "squat"), routineId = null)
+        // Unticked sets were removed on finish, so last time was 80 × 8 then 82.5 × 7.
+        assertEquals(listOf(80.0 to 8, 82.5 to 7), previous.getValue("bench").map { it.weightKg to it.reps })
+        assertTrue(previous.getValue("squat").isEmpty())
+    }
+
+    @Test
+    fun previousValuesPreferTheSameRoutine() = runTest {
+        finishBench(routineId = 7, Triple(100.0, 5, true))
+        finishBench(null, Triple(60.0, 12, true))
+
+        assertEquals(listOf(100.0 to 5), workouts.previousSets(listOf("bench"), routineId = 7).getValue("bench").map { it.weightKg to it.reps })
+        // A routine never done before falls back to the latest time anywhere.
+        assertEquals(listOf(60.0 to 12), workouts.previousSets(listOf("bench"), routineId = 8).getValue("bench").map { it.weightKg to it.reps })
+        assertEquals(listOf(60.0 to 12), workouts.previousSets(listOf("bench"), routineId = null).getValue("bench").map { it.weightKg to it.reps })
+    }
+
+    @Test
+    fun theActiveWorkoutIsNotItsOwnPrevious() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val set = active().blocks.single().sets.single()
+        workouts.setWeight(set.id, 70.0)
+        workouts.setReps(set.id, 10)
+        workouts.setCompleted(set.id, true)
+
+        assertTrue(workouts.previousSets(listOf("bench"), routineId = null).getValue("bench").isEmpty())
+    }
+
+    @Test
+    fun usingAPreviousValueCopiesItsNumbers() = runTest {
+        finishBench(null, Triple(80.0, 8, true))
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val previous = workouts.previousSets(listOf("bench"), routineId = null).getValue("bench").single()
+
+        workouts.copyValues(active().blocks.single().sets.single().id, previous)
+
+        val set = active().blocks.single().sets.single()
+        assertEquals(80.0, set.weightKg!!, 0.0)
+        assertEquals(8, set.reps)
+        assertFalse(set.completed)
+    }
+
+    @Test
+    fun exercisesCanBeMovedUpAndDown() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench", "squat"), restSeconds = 90)
+        val squatBlock = active().blocks[1]
+
+        workouts.moveExercise(id, squatBlock.workoutExercise.id, -1)
+        assertEquals(listOf("Squat", "Bench Press"), active().blocks.map { it.name })
+        workouts.moveExercise(id, squatBlock.workoutExercise.id, -1)
+        assertEquals(listOf("Squat", "Bench Press"), active().blocks.map { it.name })
+        workouts.moveExercise(id, squatBlock.workoutExercise.id, 1)
+        assertEquals(listOf("Bench Press", "Squat"), active().blocks.map { it.name })
     }
 }

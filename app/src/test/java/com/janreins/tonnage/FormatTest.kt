@@ -52,4 +52,17 @@ class FormatTest {
         assertEquals("5 km in 1:30", Format.setTarget(set, TrackingType.DISTANCE_DURATION))
         assertEquals("", Format.setTarget(WorkoutSet(workoutExerciseId = 1, position = 0), TrackingType.WEIGHT_REPS))
     }
+
+    @Test
+    fun compactSetsForThePreviousColumn() {
+        fun set(kg: Double? = null, reps: Int? = null, km: Double? = null, sec: Int? = null) =
+            WorkoutSet(workoutExerciseId = 1, position = 0, weightKg = kg, reps = reps, distanceKm = km, durationSec = sec)
+        assertEquals("80kg × 8", Format.compactSet(set(80.0, 8), TrackingType.WEIGHT_REPS))
+        assertEquals("62.5kg", Format.compactSet(set(62.5), TrackingType.WEIGHT_REPS))
+        assertEquals("× 8", Format.compactSet(set(reps = 8), TrackingType.WEIGHT_REPS))
+        assertEquals("", Format.compactSet(set(), TrackingType.WEIGHT_REPS))
+        assertEquals("12 reps", Format.compactSet(set(reps = 12), TrackingType.BODYWEIGHT_REPS))
+        assertEquals("1:30", Format.compactSet(set(sec = 90), TrackingType.DURATION))
+        assertEquals("5km 25:00", Format.compactSet(set(km = 5.0, sec = 1500), TrackingType.DISTANCE_DURATION))
+    }
 }

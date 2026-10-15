@@ -2,6 +2,7 @@ package com.janreins.tonnage.data.repository
 
 import com.janreins.tonnage.data.local.ExerciseDao
 import com.janreins.tonnage.data.local.WorkoutDao
+import com.janreins.tonnage.data.model.RoutineContents
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
@@ -65,6 +66,47 @@ class WorkoutRepository(
         )
     }
 
+    /**
+     * Starts a workout from a routine, with its exercises and planned sets filled in,
+     * or returns the workout already in progress.
+     */
+    suspend fun startFromRoutine(contents: RoutineContents): Long = write {
+        workoutDao.getActive()?.id ?: workoutDao.insertWorkoutWithContents(
+            Workout(title = contents.routine.name, startedAt = now(), routineId = contents.routine.id),
+            contents.exercises.map { (exercise, sets) ->
+                val workoutExercise = WorkoutExercise(
+                    workoutId = 0,
+                    exerciseId = exercise.exerciseId,
+                    position = exercise.position,
+                    restSeconds = exercise.restSeconds,
+                )
+                val workoutSets = sets.map {
+                    WorkoutSet(
+                        workoutExerciseId = 0,
+                        position = it.position,
+                        type = it.type,
+                        weightKg = it.weightKg,
+                        reps = it.reps,
+                        distanceKm = it.distanceKm,
+                        durationSec = it.durationSec,
+                    )
+                }.ifEmpty { listOf(WorkoutSet(workoutExerciseId = 0, position = 0)) }
+                workoutExercise to workoutSets
+            },
+        )
+    }
+
+    /**
+     * What was done last time for each exercise: the completed sets from the latest finished
+     * workout of the same routine if there is one, otherwise from the latest workout anywhere.
+     */
+    suspend fun previousSets(exerciseIds: Collection<String>, routineId: Long?): Map<String, List<WorkoutSet>> =
+        exerciseIds.associateWith { exerciseId ->
+            val workoutId = routineId?.let { workoutDao.latestWorkoutWith(exerciseId, it) }
+                ?: workoutDao.latestWorkoutWith(exerciseId, null)
+            workoutId?.let { workoutDao.completedSetsOf(it, exerciseId) }.orEmpty()
+        }
+
     suspend fun rename(workoutId: Long, title: String) = write {
         workoutDao.updateTitle(workoutId, title.trim().ifEmpty { "Workout" })
     }
@@ -82,6 +124,10 @@ class WorkoutRepository(
     }
 
     suspend fun removeExercise(workoutExerciseId: Long) = write { workoutDao.deleteWorkoutExercise(workoutExerciseId) }
+
+    suspend fun moveExercise(workoutId: Long, workoutExerciseId: Long, direction: Int) = write {
+        workoutDao.moveExercise(workoutId, workoutExerciseId, direction)
+    }
 
     suspend fun setRest(workoutExerciseId: Long, seconds: Int) = write {
         workoutDao.updateRestSeconds(workoutExerciseId, seconds)
@@ -108,6 +154,11 @@ class WorkoutRepository(
     suspend fun setReps(setId: Long, reps: Int?) = write { workoutDao.updateReps(setId, reps) }
     suspend fun setDistance(setId: Long, km: Double?) = write { workoutDao.updateDistance(setId, km) }
     suspend fun setDuration(setId: Long, seconds: Int?) = write { workoutDao.updateDuration(setId, seconds) }
+
+    /** Fills a set with the numbers from another (tapping a "previous" value). */
+    suspend fun copyValues(setId: Long, from: WorkoutSet) = write {
+        workoutDao.updateValues(setId, from.weightKg, from.reps, from.distanceKm, from.durationSec)
+    }
 
     suspend fun setCompleted(setId: Long, completed: Boolean) = write {
         workoutDao.updateCompleted(setId, completed, if (completed) now() else null)

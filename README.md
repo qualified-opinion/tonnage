@@ -7,6 +7,9 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 ## What's in it so far
 
 - **Workout logging**: start an empty workout, add exercises (multi-select from the library), and log sets with weight and reps (or reps, time, or distance and time, depending on the exercise). Tap the set number to mark it as a warm-up, drop set or failure set, or to delete it. "Add set" copies the previous set's numbers.
+- **Routines**: save the workouts you repeat (e.g. "Push A") with their exercises, rest times and planned sets, then start one with a tap from the Workout tab and the sets are filled in. Edit, duplicate or delete them from the routine's menu.
+- **Previous values**: each set shows what you did last time for that exercise (from the last time you did the same routine, otherwise from the last time anywhere). Tap it to copy the numbers into the set. If last time had fewer sets, the extra rows just show a dash.
+- **Reorder**: move exercises up or down from the exercise's menu, in a workout or a routine.
 - **Saved as you go**: every change is written to the phone's database immediately, so a workout survives the app being closed, killed or the phone restarting. When you reopen the app after that, it offers to resume or discard the unfinished workout.
 - **Rest timer**: ticking off a set starts the exercise's rest timer (default 1:30, changeable per exercise and in Settings). It keeps counting with the screen locked, shows in a notification with +15s / Skip / Open buttons, and vibrates when time is up.
 - **Ongoing-workout notification**: shows the workout's running time and sets done, so you can jump back in from the lock screen.
@@ -19,8 +22,8 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 | Phase | What you get |
 |---|---|
 | 0–1 | App skeleton, APK build, exercise library |
-| 2 (this) | Log a workout, rest timer that works with the screen locked, unfinished workouts survive app kills |
-| 3 | Routines and "previous" values while logging |
+| 2 | Log a workout, rest timer that works with the screen locked, unfinished workouts survive app kills |
+| 3 (this) | Routines and "previous" values while logging |
 | 4 | History, edit/delete, personal records |
 | 5 | Hevy CSV import and JSON backup/restore |
 | 6+ | Progress charts, weekly stats, milestones |

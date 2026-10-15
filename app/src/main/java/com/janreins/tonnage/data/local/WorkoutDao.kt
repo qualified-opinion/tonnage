@@ -29,6 +29,22 @@ abstract class WorkoutDao {
     @Insert
     abstract suspend fun insertWorkout(workout: Workout): Long
 
+    /** Inserts a workout with its exercises and sets in one go (starting from a routine). */
+    @Transaction
+    open suspend fun insertWorkoutWithContents(
+        workout: Workout,
+        exercises: List<Pair<WorkoutExercise, List<WorkoutSet>>>,
+    ): Long {
+        val workoutId = insertWorkout(workout)
+        exercises.forEachIndexed { index, (exercise, sets) ->
+            val exerciseId = insertWorkoutExercise(exercise.copy(id = 0, workoutId = workoutId, position = index))
+            sets.forEachIndexed { setIndex, set ->
+                insertSet(set.copy(id = 0, workoutExerciseId = exerciseId, position = setIndex))
+            }
+        }
+        return workoutId
+    }
+
     @Query("UPDATE workouts SET title = :title WHERE id = :id")
     abstract suspend fun updateTitle(id: Long, title: String)
 
@@ -68,6 +84,20 @@ abstract class WorkoutDao {
     @Insert
     abstract suspend fun insertWorkoutExercise(workoutExercise: WorkoutExercise): Long
 
+    @Query("UPDATE workout_exercises SET position = :position WHERE id = :id")
+    abstract suspend fun updateExercisePosition(id: Long, position: Int)
+
+    /** Swaps an exercise with its neighbour; [direction] is -1 (up) or +1 (down). */
+    @Transaction
+    open suspend fun moveExercise(workoutId: Long, workoutExerciseId: Long, direction: Int) {
+        val ordered = getWorkoutExercises(workoutId)
+        val index = ordered.indexOfFirst { it.id == workoutExerciseId }
+        val target = index + direction
+        if (index < 0 || target !in ordered.indices) return
+        val reordered = ordered.toMutableList().apply { add(target, removeAt(index)) }
+        reordered.forEachIndexed { position, exercise -> updateExercisePosition(exercise.id, position) }
+    }
+
     @Query("UPDATE workout_exercises SET restSeconds = :restSeconds WHERE id = :id")
     abstract suspend fun updateRestSeconds(id: Long, restSeconds: Int)
 
@@ -104,6 +134,14 @@ abstract class WorkoutDao {
     @Query("UPDATE workout_sets SET durationSec = :durationSec WHERE id = :id")
     abstract suspend fun updateDuration(id: Long, durationSec: Int?)
 
+    @Query(
+        """
+        UPDATE workout_sets SET weightKg = :weightKg, reps = :reps, distanceKm = :distanceKm, durationSec = :durationSec
+        WHERE id = :id
+        """,
+    )
+    abstract suspend fun updateValues(id: Long, weightKg: Double?, reps: Int?, distanceKm: Double?, durationSec: Int?)
+
     @Query("UPDATE workout_sets SET type = :type WHERE id = :id")
     abstract suspend fun updateType(id: Long, type: SetType)
 
@@ -136,6 +174,35 @@ abstract class WorkoutDao {
         deleteEmptyExercises(workoutId)
         setEndedAt(workoutId, endedAt)
     }
+
+    /** The most recent finished workout containing the exercise, optionally limited to one routine. */
+    @Query(
+        """
+        SELECT w.id FROM workouts w
+        INNER JOIN workout_exercises we ON we.workoutId = w.id
+        WHERE we.exerciseId = :exerciseId AND w.endedAt IS NOT NULL
+          AND (:routineId IS NULL OR w.routineId = :routineId)
+          AND EXISTS (SELECT 1 FROM workout_sets ws WHERE ws.workoutExerciseId = we.id AND ws.completed = 1)
+        ORDER BY w.startedAt DESC
+        LIMIT 1
+        """,
+    )
+    abstract suspend fun latestWorkoutWith(exerciseId: String, routineId: Long?): Long?
+
+    /** Completed sets of the exercise's first logged appearance in a workout, in order. */
+    @Query(
+        """
+        SELECT ws.* FROM workout_sets ws
+        WHERE ws.completed = 1 AND ws.workoutExerciseId = (
+            SELECT we.id FROM workout_exercises we
+            WHERE we.workoutId = :workoutId AND we.exerciseId = :exerciseId
+              AND EXISTS (SELECT 1 FROM workout_sets s WHERE s.workoutExerciseId = we.id AND s.completed = 1)
+            ORDER BY we.position LIMIT 1
+        )
+        ORDER BY ws.position
+        """,
+    )
+    abstract suspend fun completedSetsOf(workoutId: Long, exerciseId: String): List<WorkoutSet>
 
     @Query(
         """

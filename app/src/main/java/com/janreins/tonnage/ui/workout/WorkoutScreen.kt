@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -37,6 +38,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -55,8 +57,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.janreins.tonnage.data.model.RoutineSummary
+import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.repository.ActiveWorkout
 import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.domain.PersonalRecord
@@ -66,21 +71,33 @@ import com.janreins.tonnage.timer.RestTimer
 import com.janreins.tonnage.ui.theme.PrGold
 import kotlinx.coroutines.delay
 
-/** The Workout tab: a start button, or the workout being logged. */
+/** What the routine list on the Workout tab can do. */
+class RoutineListActions(
+    val onStart: (Long) -> Unit,
+    val onNew: () -> Unit,
+    val onEdit: (Long) -> Unit,
+    val onDuplicate: (Long) -> Unit,
+    val onDelete: (Long) -> Unit,
+)
+
+/** The Workout tab: quick start and routines, or the workout being logged. */
 @Composable
 fun WorkoutTab(
     active: ActiveWorkout?,
+    previous: Map<String, List<WorkoutSet>>,
     rest: RestTimer.State?,
     finishPreview: FinishPreview?,
+    routines: List<RoutineSummary>,
+    routineActions: RoutineListActions,
     viewModel: WorkoutViewModel,
     onAddExercise: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (active == null) {
-        StartWorkout(onStart = viewModel::startEmptyWorkout, modifier = modifier)
+        StartWorkout(routines, onStartEmpty = viewModel::startEmptyWorkout, actions = routineActions, modifier = modifier)
     } else {
-        ActiveWorkoutScreen(active, rest, viewModel, onAddExercise, modifier)
+        ActiveWorkoutScreen(active, previous, rest, viewModel, onAddExercise, modifier)
     }
     if (finishPreview != null) {
         FinishDialog(
@@ -94,44 +111,141 @@ fun WorkoutTab(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StartWorkout(onStart: () -> Unit, modifier: Modifier) {
+private fun StartWorkout(
+    routines: List<RoutineSummary>,
+    onStartEmpty: () -> Unit,
+    actions: RoutineListActions,
+    modifier: Modifier,
+) {
     val context = LocalContext.current
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    // The rest timer and ongoing-workout notification need this on Android 13+.
+    val withNotifications: (() -> Unit) -> Unit = { start ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        start()
+    }
+    var deleting by remember { mutableStateOf<RoutineSummary?>(null) }
+
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { TopAppBar(title = { Text("Workout") }) },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
+        LazyColumn(
+            Modifier.padding(padding).fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(Icons.Filled.FitnessCenter, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = {
-                    // The rest timer and ongoing-workout notification need this on Android 13+.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                    onStart()
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("Start empty workout")
+            item {
+                Button(
+                    onClick = { withNotifications(onStartEmpty) },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Start empty workout")
+                }
             }
-            Spacer(Modifier.height(12.dp))
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Routines", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = actions.onNew) {
+                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("New routine")
+                    }
+                }
+            }
+            if (routines.isEmpty()) {
+                item {
+                    Column(
+                        Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Icon(Icons.Filled.FitnessCenter, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "No routines yet. Save the workouts you repeat, like Push A or Legs, and start them with one tap.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+            items(routines, key = { it.routine.id }) { summary ->
+                RoutineCard(
+                    summary = summary,
+                    onStart = { withNotifications { actions.onStart(summary.routine.id) } },
+                    onEdit = { actions.onEdit(summary.routine.id) },
+                    onDuplicate = { actions.onDuplicate(summary.routine.id) },
+                    onDelete = { deleting = summary },
+                )
+            }
+        }
+    }
+
+    deleting?.let { summary ->
+        AlertDialog(
+            onDismissRequest = { deleting = null },
+            title = { Text("Delete \"${summary.routine.name}\"?") },
+            text = { Text("The routine is removed. Workouts you already logged with it stay in your history.") },
+            confirmButton = {
+                TextButton(onClick = { deleting = null; actions.onDelete(summary.routine.id) }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RoutineCard(
+    summary: RoutineSummary,
+    onStart: () -> Unit,
+    onEdit: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    OutlinedCard(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    summary.routine.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Routine options") }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text("Edit") }, onClick = { menu = false; onEdit() })
+                        DropdownMenuItem(text = { Text("Duplicate") }, onClick = { menu = false; onDuplicate() })
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+                            onClick = { menu = false; onDelete() },
+                        )
+                    }
+                }
+            }
             Text(
-                "Routines and your previous numbers are coming in the next update.",
+                summary.exerciseNames.joinToString(", ").ifEmpty { "No exercises" },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = 12.dp),
             )
+            Spacer(Modifier.height(8.dp))
+            FilledTonalButton(onClick = onStart, modifier = Modifier.padding(end = 12.dp).fillMaxWidth()) {
+                Text("Start routine")
+            }
         }
     }
 }
@@ -140,6 +254,7 @@ private fun StartWorkout(onStart: () -> Unit, modifier: Modifier) {
 @Composable
 private fun ActiveWorkoutScreen(
     active: ActiveWorkout,
+    previous: Map<String, List<WorkoutSet>>,
     rest: RestTimer.State?,
     viewModel: WorkoutViewModel,
     onAddExercise: () -> Unit,
@@ -208,13 +323,17 @@ private fun ActiveWorkoutScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-            items(active.blocks, key = { it.workoutExercise.id }) { block ->
+            itemsIndexed(active.blocks, key = { _, block -> block.workoutExercise.id }) { index, block ->
                 ExerciseCard(
                     block = block,
                     actions = actions,
                     onAddSet = { viewModel.addSet(block) },
                     onRestChange = { viewModel.setRest(block, it) },
                     onRemove = { viewModel.removeExercise(block) },
+                    previous = previous[block.workoutExercise.exerciseId].orEmpty(),
+                    onUsePrevious = viewModel::usePrevious,
+                    onMoveUp = if (index > 0) ({ viewModel.moveExercise(block, -1) }) else null,
+                    onMoveDown = if (index < active.blocks.lastIndex) ({ viewModel.moveExercise(block, 1) }) else null,
                 )
             }
             item {
