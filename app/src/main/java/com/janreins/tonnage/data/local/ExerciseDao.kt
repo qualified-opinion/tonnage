@@ -27,11 +27,12 @@ interface ExerciseDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(exercise: Exercise)
 
-    /** Deletes a custom exercise unless a workout uses it. Returns the number of rows deleted. */
+    /** Deletes a custom exercise unless a workout or routine uses it. Returns the number of rows deleted. */
     @Query(
         """
         DELETE FROM exercises WHERE id = :id AND isCustom = 1
         AND id NOT IN (SELECT exerciseId FROM workout_exercises)
+        AND id NOT IN (SELECT exerciseId FROM routine_exercises)
         """,
     )
     suspend fun deleteCustom(id: String): Int

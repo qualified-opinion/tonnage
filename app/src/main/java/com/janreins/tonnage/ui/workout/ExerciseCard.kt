@@ -69,6 +69,10 @@ class SetActions(
     val onToggle: (WorkoutSet) -> Unit,
 )
 
+/**
+ * One exercise with its sets. [previous] adds the "previous" column (what was done last time,
+ * tap to copy); the routine editor leaves it out and hides the tick boxes with [showCheck].
+ */
 @Composable
 fun ExerciseCard(
     block: ExerciseBlock,
@@ -77,6 +81,11 @@ fun ExerciseCard(
     onRestChange: (Int) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
+    previous: List<WorkoutSet>? = null,
+    onUsePrevious: (set: WorkoutSet, previous: WorkoutSet) -> Unit = { _, _ -> },
+    onMoveUp: (() -> Unit)? = null,
+    onMoveDown: (() -> Unit)? = null,
+    showCheck: Boolean = true,
 ) {
     val fields = fieldsFor(block.trackingType)
     val labels = WorkoutStats.setLabels(block.sets)
@@ -97,7 +106,16 @@ fun ExerciseCard(
                     Icon(Icons.Filled.MoreVert, contentDescription = "Exercise options")
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(text = { Text("Remove exercise") }, onClick = { menu = false; onRemove() })
+                    onMoveUp?.let { move ->
+                        DropdownMenuItem(text = { Text("Move up") }, onClick = { menu = false; move() })
+                    }
+                    onMoveDown?.let { move ->
+                        DropdownMenuItem(text = { Text("Move down") }, onClick = { menu = false; move() })
+                    }
+                    DropdownMenuItem(
+                        text = { Text("Remove exercise", color = MaterialTheme.colorScheme.error) },
+                        onClick = { menu = false; onRemove() },
+                    )
                 }
             }
         }
@@ -107,13 +125,26 @@ fun ExerciseCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             HeaderText("SET", Modifier.width(40.dp))
+            if (previous != null) HeaderText("PREVIOUS", Modifier.weight(PREVIOUS_WEIGHT))
             fields.forEach { HeaderText(it.header, Modifier.weight(1f)) }
-            Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+            if (showCheck) {
+                Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                }
             }
         }
         block.sets.forEachIndexed { index, set ->
-            SetRow(set, labels[index], fields, actions)
+            SetRow(
+                set = set,
+                label = labels[index],
+                fields = fields,
+                actions = actions,
+                showPrevious = previous != null,
+                previous = previous?.getOrNull(index),
+                trackingType = block.trackingType,
+                onUsePrevious = onUsePrevious,
+                showCheck = showCheck,
+            )
         }
         TextButton(onClick = onAddSet, modifier = Modifier.padding(horizontal = 8.dp)) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -155,8 +186,20 @@ private fun RestChip(restSeconds: Int, onChange: (Int) -> Unit) {
     }
 }
 
+private const val PREVIOUS_WEIGHT = 1.3f
+
 @Composable
-private fun SetRow(set: WorkoutSet, label: String, fields: List<Field>, actions: SetActions) {
+private fun SetRow(
+    set: WorkoutSet,
+    label: String,
+    fields: List<Field>,
+    actions: SetActions,
+    showPrevious: Boolean,
+    previous: WorkoutSet?,
+    trackingType: TrackingType,
+    onUsePrevious: (WorkoutSet, WorkoutSet) -> Unit,
+    showCheck: Boolean,
+) {
     val colors = MaterialTheme.colorScheme
     val rowColor = if (set.completed) colors.primaryContainer.copy(alpha = 0.45f) else colors.surface
     Row(
@@ -168,6 +211,27 @@ private fun SetRow(set: WorkoutSet, label: String, fields: List<Field>, actions:
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SetTypeButton(set, label, actions, Modifier.width(40.dp))
+        if (showPrevious) {
+            val text = previous?.let { Format.compactSet(it, trackingType) }.orEmpty()
+            Text(
+                text.ifEmpty { "—" },
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .weight(PREVIOUS_WEIGHT)
+                    .then(
+                        if (previous != null && text.isNotEmpty()) {
+                            Modifier.clickable(onClickLabel = "Use previous values") { onUsePrevious(set, previous) }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(vertical = 10.dp),
+            )
+        }
         fields.forEach { field ->
             SetNumberCell(
                 key = set.id,
@@ -190,18 +254,20 @@ private fun SetRow(set: WorkoutSet, label: String, fields: List<Field>, actions:
                 modifier = Modifier.weight(1f),
             )
         }
-        Box(
-            Modifier
-                .size(44.dp, 40.dp)
-                .background(if (set.completed) colors.primary else colors.surfaceVariant, RoundedCornerShape(8.dp))
-                .clickable { actions.onToggle(set) },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                Icons.Filled.Check,
-                contentDescription = if (set.completed) "Mark set not done" else "Mark set done",
-                tint = if (set.completed) colors.onPrimary else colors.onSurfaceVariant,
-            )
+        if (showCheck) {
+            Box(
+                Modifier
+                    .size(44.dp, 40.dp)
+                    .background(if (set.completed) colors.primary else colors.surfaceVariant, RoundedCornerShape(8.dp))
+                    .clickable { actions.onToggle(set) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Filled.Check,
+                    contentDescription = if (set.completed) "Mark set not done" else "Mark set done",
+                    tint = if (set.completed) colors.onPrimary else colors.onSurfaceVariant,
+                )
+            }
         }
     }
 }

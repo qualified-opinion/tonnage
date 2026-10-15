@@ -8,6 +8,7 @@ import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.repository.ActiveWorkout
+import com.janreins.tonnage.data.repository.RoutineRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
@@ -17,11 +18,15 @@ import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.service.WorkoutService
 import com.janreins.tonnage.timer.RestTimer
 import com.janreins.tonnage.timer.WorkoutSession
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,6 +37,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val db = AppDatabase.getInstance(application)
     private val repository = WorkoutRepository(db.workoutDao(), db.exerciseDao())
+    private val routines = RoutineRepository(db.routineDao(), db.exerciseDao())
     private val settings = SettingsStore.get(application)
 
     /** False until the database has answered whether a workout is active. */
@@ -40,6 +46,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     val active: StateFlow<ActiveWorkout?> = repository.observeActive()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Last time's completed sets per exercise id, for the "previous" column. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val previous: StateFlow<Map<String, List<WorkoutSet>>> = active
+        .map { workout -> workout?.let { it.workout.routineId to it.blocks.map { b -> b.workoutExercise.exerciseId }.toSet() } }
+        .distinctUntilChanged()
+        .mapLatest { key -> key?.let { (routineId, ids) -> repository.previousSets(ids, routineId) }.orEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     /** An unfinished workout found after the app was killed, waiting for resume or discard. */
     private val _pendingResume = MutableStateFlow<Workout?>(null)
@@ -89,6 +103,15 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun startRoutine(routineId: Long) {
+        viewModelScope.launch {
+            val contents = routines.load(routineId) ?: return@launch
+            repository.startFromRoutine(contents)
+            _pendingResume.value = null
+            startService()
+        }
+    }
+
     fun resumePending() {
         _pendingResume.value = null
         startService()
@@ -117,6 +140,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun removeExercise(block: ExerciseBlock) {
         viewModelScope.launch { repository.removeExercise(block.workoutExercise.id) }
+    }
+
+    fun moveExercise(block: ExerciseBlock, direction: Int) {
+        viewModelScope.launch {
+            repository.moveExercise(block.workoutExercise.workoutId, block.workoutExercise.id, direction)
+        }
+    }
+
+    fun usePrevious(set: WorkoutSet, previous: WorkoutSet) {
+        viewModelScope.launch { repository.copyValues(set.id, previous) }
     }
 
     fun setRest(block: ExerciseBlock, seconds: Int) {

@@ -11,12 +11,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -33,6 +35,7 @@ enum class CellKind(val keyboardType: KeyboardType, val allowed: (Char) -> Boole
 /**
  * A compact number box for a set. It keeps its own text while you type (so "62." isn't
  * reformatted mid-entry) and reports every change; [key] resets it for a different set.
+ * When it isn't focused it follows [initial], so values filled in from elsewhere show up.
  */
 @Composable
 fun SetNumberCell(
@@ -44,6 +47,10 @@ fun SetNumberCell(
     modifier: Modifier = Modifier,
 ) {
     var text by remember(key) { mutableStateOf(initial) }
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(initial) {
+        if (!focused) text = initial
+    }
     val colors = MaterialTheme.colorScheme
     BasicTextField(
         value = text,
@@ -52,7 +59,7 @@ fun SetNumberCell(
             text = filtered
             onChange(filtered)
         },
-        modifier = modifier.height(40.dp),
+        modifier = modifier.height(40.dp).onFocusChanged { focused = it.isFocused },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = colors.onSurface,

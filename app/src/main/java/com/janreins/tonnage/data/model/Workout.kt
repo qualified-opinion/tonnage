@@ -17,6 +17,8 @@ data class Workout(
     val endedAt: Long? = null,
     val notes: String = "",
     val source: String = SOURCE_APP,
+    /** The routine it was started from, if any. Not a foreign key: deleting a routine keeps history. */
+    val routineId: Long? = null,
 ) {
     val isActive: Boolean get() = endedAt == null
 

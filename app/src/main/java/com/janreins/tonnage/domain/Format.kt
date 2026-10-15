@@ -50,6 +50,22 @@ object Format {
 
     fun restSeconds(seconds: Int): String = if (seconds <= 0) "Off" else duration(seconds * 1000L)
 
+    /** Short form for the "previous" column: "60kg × 8", "12 reps", "2km 10:00", or "" when empty. */
+    fun compactSet(set: WorkoutSet, trackingType: TrackingType): String = when (trackingType) {
+        TrackingType.WEIGHT_REPS -> when {
+            set.weightKg != null && set.reps != null -> "${number(set.weightKg)}kg × ${set.reps}"
+            set.weightKg != null -> "${number(set.weightKg)}kg"
+            set.reps != null -> "× ${set.reps}"
+            else -> ""
+        }
+        TrackingType.BODYWEIGHT_REPS -> set.reps?.let { "$it reps" } ?: ""
+        TrackingType.DURATION -> set.durationSec?.let { duration(it * 1000L) } ?: ""
+        TrackingType.DISTANCE_DURATION -> listOfNotNull(
+            set.distanceKm?.let { "${number(it)}km" },
+            set.durationSec?.let { duration(it * 1000L) },
+        ).joinToString(" ")
+    }
+
     /** "60 kg × 8", "12 reps", "1:30" or "" when nothing is filled in. */
     fun setTarget(set: WorkoutSet, trackingType: TrackingType): String = when (trackingType) {
         TrackingType.WEIGHT_REPS -> when {

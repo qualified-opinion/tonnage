@@ -8,6 +8,9 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.janreins.tonnage.data.model.Exercise
+import com.janreins.tonnage.data.model.Routine
+import com.janreins.tonnage.data.model.RoutineExercise
+import com.janreins.tonnage.data.model.RoutineSet
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
 import com.janreins.tonnage.data.model.WorkoutSet
@@ -65,15 +68,67 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/** Adds routines (templates) and links workouts to the routine they were started from. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `workouts` ADD COLUMN `routineId` INTEGER")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `routines` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `notes` TEXT NOT NULL,
+                `position` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `routine_exercises` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `routineId` INTEGER NOT NULL,
+                `exerciseId` TEXT NOT NULL,
+                `position` INTEGER NOT NULL,
+                `restSeconds` INTEGER NOT NULL,
+                FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_exercises_exerciseId` ON `routine_exercises` (`exerciseId`)")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `routine_sets` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `routineExerciseId` INTEGER NOT NULL,
+                `position` INTEGER NOT NULL,
+                `type` TEXT NOT NULL,
+                `weightKg` REAL,
+                `reps` INTEGER,
+                `distanceKm` REAL,
+                `durationSec` INTEGER,
+                FOREIGN KEY(`routineExerciseId`) REFERENCES `routine_exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_sets_routineExerciseId` ON `routine_sets` (`routineExerciseId`)")
+    }
+}
+
 @Database(
-    entities = [Exercise::class, Workout::class, WorkoutExercise::class, WorkoutSet::class],
-    version = 2,
+    entities = [
+        Exercise::class, Workout::class, WorkoutExercise::class, WorkoutSet::class,
+        Routine::class, RoutineExercise::class, RoutineSet::class,
+    ],
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutDao(): WorkoutDao
+    abstract fun routineDao(): RoutineDao
 
     companion object {
         const val NAME = "tonnage_database"
@@ -88,7 +143,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun build(context: Context, name: String = NAME): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }
