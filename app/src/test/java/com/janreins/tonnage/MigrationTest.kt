@@ -5,6 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.janreins.tonnage.data.local.AppDatabase
+import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.RoutineExercise
 import com.janreins.tonnage.data.model.RoutineSet
 import com.janreins.tonnage.data.model.Workout
@@ -125,6 +126,11 @@ class MigrationTest {
                 listOf(RoutineExercise(routineId = 0, exerciseId = "custom-1", position = 0, restSeconds = 90) to listOf(RoutineSet(routineExerciseId = 0, position = 0))),
             )
             assertEquals(listOf("Landmine Press"), routines.observeSummaries().first().single { it.routine.id == routineId }.exerciseNames)
+
+            // Version 4 added remembered Hevy matches.
+            db.importDao().saveMappings(listOf(HevyMapping("landmine press", "custom-1")))
+            assertEquals(listOf("custom-1"), db.importDao().mappings().map { it.exerciseId })
+            assertEquals(emptyList<Long>(), db.importDao().hevyStartTimes())
         } finally {
             db.close()
         }

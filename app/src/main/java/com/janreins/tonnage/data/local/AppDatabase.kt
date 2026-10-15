@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.janreins.tonnage.data.model.Exercise
+import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.Routine
 import com.janreins.tonnage.data.model.RoutineExercise
 import com.janreins.tonnage.data.model.RoutineSet
@@ -116,12 +117,21 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     }
 }
 
+/** Adds the remembered Hevy exercise matches. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `hevy_mappings` (`hevyName` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, PRIMARY KEY(`hevyName`))",
+        )
+    }
+}
+
 @Database(
     entities = [
         Exercise::class, Workout::class, WorkoutExercise::class, WorkoutSet::class,
-        Routine::class, RoutineExercise::class, RoutineSet::class,
+        Routine::class, RoutineExercise::class, RoutineSet::class, HevyMapping::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -129,6 +139,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun workoutDao(): WorkoutDao
     abstract fun routineDao(): RoutineDao
+    abstract fun importDao(): ImportDao
 
     companion object {
         const val NAME = "tonnage_database"
@@ -143,7 +154,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun build(context: Context, name: String = NAME): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }
