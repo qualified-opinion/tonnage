@@ -14,7 +14,9 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 - **Rest timer**: ticking off a set starts the exercise's rest timer (default 1:30, changeable per exercise and in Settings). It keeps counting with the screen locked, shows in a notification with +15s / Skip / Open buttons, and vibrates when time is up.
 - **Ongoing-workout notification**: shows the workout's running time and sets done, so you can jump back in from the lock screen.
 - **Finish summary**: duration, sets, volume (warm-ups excluded) and any new records (heaviest weight, best estimated 1RM using Epley, most reps for bodyweight exercises) before saving. Unticked sets are dropped.
-- **History**: a list of finished workouts with duration, sets and volume.
+- **History**: a list of finished workouts with duration, sets, volume and how many records each set. Tap one to see every set, with a trophy next to record sets.
+- **Edit or delete past workouts**: fix a typo in a weight, add a forgotten set or exercise, rename it, or delete it. Records are worked out from all your sets each time, so they correct themselves after an edit.
+- **Save as routine**: turn a logged workout into a routine from its ⋮ menu.
 - **Exercises**: 876 exercises bundled from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain), searchable by name (`db`, `bb`, `kb`, `ohp`, `rdl` shorthands work) and filterable by muscle, equipment or custom-only. Add your own with the + button.
 
 ## Roadmap
@@ -23,8 +25,8 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 |---|---|
 | 0–1 | App skeleton, APK build, exercise library |
 | 2 | Log a workout, rest timer that works with the screen locked, unfinished workouts survive app kills |
-| 3 (this) | Routines and "previous" values while logging |
-| 4 | History, edit/delete, personal records |
+| 3 | Routines and "previous" values while logging |
+| 4 (this) | Workout detail, edit/delete, record badges, save as routine |
 | 5 | Hevy CSV import and JSON backup/restore |
 | 6+ | Progress charts, weekly stats, milestones |
 

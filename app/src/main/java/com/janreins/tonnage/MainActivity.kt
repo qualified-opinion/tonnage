@@ -37,6 +37,7 @@ import com.janreins.tonnage.ui.exercises.ExercisesViewModel
 import com.janreins.tonnage.ui.exercises.PickerMode
 import com.janreins.tonnage.ui.history.HistoryScreen
 import com.janreins.tonnage.ui.history.HistoryViewModel
+import com.janreins.tonnage.ui.history.WorkoutDetailScreen
 import com.janreins.tonnage.ui.routines.RoutineEditorScreen
 import com.janreins.tonnage.ui.routines.RoutinesViewModel
 import com.janreins.tonnage.ui.components.ComingSoon
@@ -50,7 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class PickerTarget { WORKOUT, ROUTINE }
+private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,6 +90,10 @@ private fun TonnageApp() {
     val routines by routinesViewModel.routines.collectAsStateWithLifecycle()
     val routineEditor by routinesViewModel.editor.collectAsStateWithLifecycle()
     val routineBlocks by routinesViewModel.editorBlocks.collectAsStateWithLifecycle()
+    val openWorkoutId by historyViewModel.openId.collectAsStateWithLifecycle()
+    val openWorkout by historyViewModel.opened.collectAsStateWithLifecycle()
+    val editingWorkout by historyViewModel.editing.collectAsStateWithLifecycle()
+    val records by historyViewModel.records.collectAsStateWithLifecycle()
 
     val exerciseId = openExerciseId
     val target = pickerTarget
@@ -132,6 +137,7 @@ private fun TonnageApp() {
                         when (target) {
                             PickerTarget.WORKOUT -> workoutViewModel.addExercises(pickerSelection)
                             PickerTarget.ROUTINE -> routinesViewModel.addExercises(pickerSelection)
+                            PickerTarget.EDITED_WORKOUT -> historyViewModel.addExercises(pickerSelection)
                         }
                         close()
                     },
@@ -144,6 +150,15 @@ private fun TonnageApp() {
             blocks = routineBlocks,
             viewModel = routinesViewModel,
             onAddExercise = { pickerTarget = PickerTarget.ROUTINE },
+            modifier = Modifier.fillMaxSize(),
+        )
+        openWorkoutId != null -> WorkoutDetailScreen(
+            workout = openWorkout?.takeIf { it.workout.id == openWorkoutId },
+            records = openWorkoutId?.let { records[it] }.orEmpty(),
+            editing = editingWorkout,
+            viewModel = historyViewModel,
+            onAddExercise = { pickerTarget = PickerTarget.EDITED_WORKOUT },
+            onSaveAsRoutine = { routinesViewModel.newFromWorkout(it.workout.title, it.blocks) },
             modifier = Modifier.fillMaxSize(),
         )
         else -> MainTabs(
@@ -171,7 +186,7 @@ private fun TonnageApp() {
                     )
                     MainTab.HISTORY -> {
                         val workouts by historyViewModel.workouts.collectAsStateWithLifecycle()
-                        HistoryScreen(workouts, modifier)
+                        HistoryScreen(workouts, records, onOpen = { historyViewModel.open(it.id) }, modifier = modifier)
                     }
                     MainTab.EXERCISES -> ExercisesScreen(
                         state = exercisesState,

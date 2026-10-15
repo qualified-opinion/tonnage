@@ -106,6 +106,20 @@ data class RoutineDraft(val id: Long = 0, val name: String = "", val exercises: 
     }
 
     companion object {
+        /** A new routine copied from a logged workout ("Save as routine"). */
+        fun fromBlocks(name: String, blocks: List<ExerciseBlock>, nextKey: () -> Long) = RoutineDraft(
+            name = name,
+            exercises = blocks.map { block ->
+                DraftExercise(
+                    key = nextKey(),
+                    exerciseId = block.workoutExercise.exerciseId,
+                    restSeconds = block.workoutExercise.restSeconds,
+                    sets = block.sets.map { DraftSet(nextKey(), it.type, it.weightKg, it.reps, it.distanceKm, it.durationSec) }
+                        .ifEmpty { listOf(DraftSet(nextKey())) },
+                )
+            },
+        )
+
         fun from(contents: RoutineContents, nextKey: () -> Long) = RoutineDraft(
             id = contents.routine.id,
             name = contents.routine.name,

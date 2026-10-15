@@ -34,8 +34,17 @@ class WorkoutRepository(
 
     private suspend fun <T> write(block: suspend () -> T): T = writeLock.withLock { block() }
 
+    fun observeActive(): Flow<ActiveWorkout?> = withContents(workoutDao.observeActive())
+
+    /** Any workout with its exercises and sets, e.g. a finished one opened from history. */
+    fun observeWorkout(workoutId: Long): Flow<ActiveWorkout?> = withContents(workoutDao.observeWorkout(workoutId))
+
+    /** Personal records over all finished workouts, by workout id. */
+    fun observeRecords(): Flow<Map<Long, List<PersonalRecord>>> =
+        workoutDao.observeRecordSets().map { WorkoutStats.recordsByWorkout(it) }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeActive(): Flow<ActiveWorkout?> = workoutDao.observeActive().flatMapLatest { workout ->
+    private fun withContents(workouts: Flow<Workout?>): Flow<ActiveWorkout?> = workouts.flatMapLatest { workout ->
         if (workout == null) {
             flowOf(null)
         } else {
@@ -111,15 +120,20 @@ class WorkoutRepository(
         workoutDao.updateTitle(workoutId, title.trim().ifEmpty { "Workout" })
     }
 
-    /** Adds exercises at the end, each with one empty set. */
-    suspend fun addExercises(workoutId: Long, exerciseIds: List<String>, restSeconds: Int) = write {
+    /**
+     * Adds exercises at the end, each with one empty set. [completed] is for editing a finished
+     * workout, where every set counts as done.
+     */
+    suspend fun addExercises(workoutId: Long, exerciseIds: List<String>, restSeconds: Int, completed: Boolean = false) = write {
         var position = workoutDao.maxExercisePosition(workoutId)
         exerciseIds.forEach { exerciseId ->
             position += 1
             val id = workoutDao.insertWorkoutExercise(
                 WorkoutExercise(workoutId = workoutId, exerciseId = exerciseId, position = position, restSeconds = restSeconds),
             )
-            workoutDao.insertSet(WorkoutSet(workoutExerciseId = id, position = 0))
+            workoutDao.insertSet(
+                WorkoutSet(workoutExerciseId = id, position = 0, completed = completed, completedAt = if (completed) now() else null),
+            )
         }
     }
 
@@ -134,7 +148,7 @@ class WorkoutRepository(
     }
 
     /** Adds a set after the last one, pre-filled with its values. */
-    suspend fun addSet(workoutExerciseId: Long) = write {
+    suspend fun addSet(workoutExerciseId: Long, completed: Boolean = false) = write {
         val last = workoutDao.getSets(workoutExerciseId).lastOrNull()
         workoutDao.insertSet(
             WorkoutSet(
@@ -144,6 +158,8 @@ class WorkoutRepository(
                 reps = last?.reps,
                 distanceKm = last?.distanceKm,
                 durationSec = last?.durationSec,
+                completed = completed,
+                completedAt = if (completed) now() else null,
             ),
         )
     }
@@ -173,7 +189,11 @@ class WorkoutRepository(
 
     suspend fun finish(workoutId: Long) = write { workoutDao.finishWorkout(workoutId, now()) }
 
+    /** Deletes a workout, active or finished, with everything in it. */
     suspend fun discard(workoutId: Long) = write { workoutDao.deleteWorkout(workoutId) }
+
+    /** Ends editing a finished workout: blank sets and empty exercises are dropped. */
+    suspend fun tidyEdited(workoutId: Long) = write { workoutDao.tidyEdited(workoutId) }
 
     companion object {
         fun defaultTitle(timeMs: Long): String {

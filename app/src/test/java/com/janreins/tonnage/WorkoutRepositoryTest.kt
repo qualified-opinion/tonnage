@@ -246,4 +246,38 @@ class WorkoutRepositoryTest {
         workouts.moveExercise(id, squatBlock.workoutExercise.id, 1)
         assertEquals(listOf("Bench Press", "Squat"), active().blocks.map { it.name })
     }
+
+    @Test
+    fun editingAnOldWorkoutRecalculatesLaterRecords() = runTest {
+        val first = finishBench(null, Triple(100.0, 5, true))
+        val second = finishBench(null, Triple(110.0, 5, true))
+        assertEquals(setOf(second), workouts.observeRecords().first().keys)
+
+        // Correct a typo in the first workout: it was really 120 kg, so the second set no record.
+        val firstSet = workouts.observeWorkout(first).first()!!.blocks.single().sets.single()
+        workouts.setWeight(firstSet.id, 120.0)
+        assertTrue(workouts.observeRecords().first().isEmpty())
+
+        workouts.discard(first)
+        assertTrue(workouts.observeRecords().first().isEmpty())
+        assertEquals(listOf(second), workouts.observeHistory().first().map { it.id })
+    }
+
+    @Test
+    fun setsAddedWhileEditingCountAndBlankOnesAreTidiedAway() = runTest {
+        val id = finishBench(null, Triple(100.0, 5, true))
+        val block = workouts.observeWorkout(id).first()!!.blocks.single()
+
+        workouts.addSet(block.workoutExercise.id, completed = true)
+        workouts.addExercises(id, listOf("squat"), restSeconds = 90, completed = true)
+        var edited = workouts.observeWorkout(id).first()!!
+        assertTrue(edited.blocks.all { b -> b.sets.all { it.completed } })
+        assertEquals(1000.0, workouts.observeHistory().first().single().volumeKg, 0.0)
+
+        // The squat was added but never filled in, so Done removes it.
+        workouts.tidyEdited(id)
+        edited = workouts.observeWorkout(id).first()!!
+        assertEquals(listOf("Bench Press"), edited.blocks.map { it.name })
+        assertEquals(2, edited.blocks.single().sets.size)
+    }
 }

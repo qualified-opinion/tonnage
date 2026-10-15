@@ -2,6 +2,7 @@ package com.janreins.tonnage.domain
 
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.PastSet
+import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.WorkoutExercise
@@ -29,6 +30,8 @@ data class PersonalRecord(
     val kind: PrKind,
     val value: Double,
     val previous: Double,
+    /** The set that set the record, when known (history); 0 on the finish screen. */
+    val setId: Long = 0,
 )
 
 data class SessionSummary(
@@ -67,6 +70,58 @@ object WorkoutStats {
         )
     }
 
+    /** The records tracked for each way of logging an exercise. */
+    fun recordKinds(type: TrackingType): List<PrKind> = when (type) {
+        TrackingType.WEIGHT_REPS -> listOf(PrKind.HEAVIEST_WEIGHT, PrKind.BEST_ONE_REP_MAX)
+        TrackingType.BODYWEIGHT_REPS -> listOf(PrKind.MOST_REPS)
+        else -> emptyList()
+    }
+
+    /** A set's value for one kind of record; 0 when it doesn't count. */
+    fun recordValue(kind: PrKind, weightKg: Double?, reps: Int?): Double = when (kind) {
+        PrKind.HEAVIEST_WEIGHT -> if ((reps ?: 0) > 0) weightKg ?: 0.0 else 0.0
+        PrKind.BEST_ONE_REP_MAX -> estimatedOneRepMax(weightKg ?: 0.0, reps ?: 0)
+        PrKind.MOST_REPS -> (reps ?: 0).toDouble()
+    }
+
+    /**
+     * Every record in history, by workout id. Workouts are walked in date order: a workout sets a
+     * record when its best set beats every earlier workout's. As on the finish screen, an
+     * exercise's first workout sets none. Because this is worked out from the sets each time,
+     * editing or deleting an old workout corrects the records after it.
+     */
+    fun recordsByWorkout(sets: List<RecordSet>): Map<Long, List<PersonalRecord>> {
+        val best = mutableMapOf<Pair<String, PrKind>, Double>()
+        val done = mutableSetOf<String>()
+        val result = mutableMapOf<Long, MutableList<PersonalRecord>>()
+        sets.sortedWith(compareBy({ it.startedAt }, { it.workoutId }))
+            .groupBy { it.workoutId }
+            .forEach { (workoutId, workoutSets) ->
+                workoutSets.groupBy { it.exerciseId }.forEach { (exerciseId, exerciseSets) ->
+                    val first = exerciseSets.first()
+                    val type = TrackingType.entries.firstOrNull { it.name == first.trackingType } ?: TrackingType.WEIGHT_REPS
+                    recordKinds(type).forEach { kind ->
+                        val top = exerciseSets.maxBy { recordValue(kind, it.weightKg, it.reps) }
+                        val value = recordValue(kind, top.weightKg, top.reps)
+                        val before = best[exerciseId to kind] ?: 0.0
+                        if (exerciseId in done && value > before) {
+                            result.getOrPut(workoutId) { mutableListOf() } += PersonalRecord(
+                                exerciseId = exerciseId,
+                                exerciseName = first.exerciseName ?: "Unknown exercise",
+                                kind = kind,
+                                value = value,
+                                previous = before,
+                                setId = top.setId,
+                            )
+                        }
+                        if (value > before) best[exerciseId to kind] = value
+                    }
+                    done += exerciseId
+                }
+            }
+        return result
+    }
+
     /**
      * Records beaten in this workout compared with earlier finished workouts. An exercise with no
      * history yields no records, so a first session (or one before the Hevy import) isn't all PRs.
@@ -83,27 +138,12 @@ object WorkoutStats {
             fun record(kind: PrKind, now: Double, before: Double): PersonalRecord? =
                 if (now > before && now > 0.0) PersonalRecord(exerciseId, block.name, kind, now, before) else null
 
-            when (block.trackingType) {
-                TrackingType.WEIGHT_REPS -> listOfNotNull(
-                    record(
-                        PrKind.HEAVIEST_WEIGHT,
-                        current.maxOf { if ((it.reps ?: 0) > 0) it.weightKg ?: 0.0 else 0.0 },
-                        past.maxOf { if ((it.reps ?: 0) > 0) it.weightKg ?: 0.0 else 0.0 },
-                    ),
-                    record(
-                        PrKind.BEST_ONE_REP_MAX,
-                        current.maxOf { estimatedOneRepMax(it.weightKg ?: 0.0, it.reps ?: 0) },
-                        past.maxOf { estimatedOneRepMax(it.weightKg ?: 0.0, it.reps ?: 0) },
-                    ),
+            recordKinds(block.trackingType).mapNotNull { kind ->
+                record(
+                    kind,
+                    current.maxOf { recordValue(kind, it.weightKg, it.reps) },
+                    past.maxOf { recordValue(kind, it.weightKg, it.reps) },
                 )
-                TrackingType.BODYWEIGHT_REPS -> listOfNotNull(
-                    record(
-                        PrKind.MOST_REPS,
-                        current.maxOf { (it.reps ?: 0).toDouble() },
-                        past.maxOf { (it.reps ?: 0).toDouble() },
-                    ),
-                )
-                else -> emptyList()
             }
         }
     }

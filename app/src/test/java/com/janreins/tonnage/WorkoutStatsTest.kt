@@ -2,6 +2,7 @@ package com.janreins.tonnage
 
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.PastSet
+import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.WorkoutExercise
@@ -109,5 +110,57 @@ class WorkoutStatsTest {
         val benchDone = listOf(block(bench, 1, first, second.copy(completed = true)), block(pullup, 2, pullFirst))
         assertEquals("Pullups · Set 1 · 10 reps", WorkoutStats.nextSetLabel(benchDone, second.id))
         assertNull(WorkoutStats.nextSetLabel(blocks, pullFirst.id))
+    }
+
+    private fun recordSet(workoutId: Long, day: Long, exercise: Exercise, setId: Long, weight: Double?, reps: Int?) = RecordSet(
+        workoutId = workoutId,
+        startedAt = day * 86_400_000,
+        exerciseId = exercise.id,
+        exerciseName = exercise.name,
+        trackingType = exercise.trackingType.name,
+        setId = setId,
+        weightKg = weight,
+        reps = reps,
+    )
+
+    @Test
+    fun historyRecordsFollowDateOrderAndSkipTheFirstSession() {
+        val records = WorkoutStats.recordsByWorkout(
+            listOf(
+                // Listed out of order on purpose: workout 3 happened before workout 2.
+                recordSet(2, day = 3, bench, setId = 20, weight = 105.0, reps = 3),
+                recordSet(1, day = 1, bench, setId = 10, weight = 100.0, reps = 5),
+                recordSet(3, day = 2, bench, setId = 30, weight = 100.0, reps = 8),
+                recordSet(3, day = 2, pullup, setId = 31, weight = null, reps = 12),
+            ),
+        )
+
+        // Workout 1 is the first bench session, and workout 3 is the first pull-up session.
+        assertNull(records[1])
+        val day2 = records.getValue(3)
+        assertEquals(listOf(PrKind.BEST_ONE_REP_MAX), day2.map { it.kind })
+        assertEquals(30L, day2.single().setId)
+        assertEquals(WorkoutStats.estimatedOneRepMax(100.0, 5), day2.single().previous, 0.001)
+
+        // 105 × 3 is heavier than 100, but its estimated 1RM (115.5) is below 100 × 8 (126.7).
+        val day3 = records.getValue(2)
+        assertEquals(listOf(PrKind.HEAVIEST_WEIGHT), day3.map { it.kind })
+        assertEquals(105.0, day3.single().value, 0.0)
+        assertEquals(20L, day3.single().setId)
+    }
+
+    @Test
+    fun historyRecordsCountBodyweightReps() {
+        val records = WorkoutStats.recordsByWorkout(
+            listOf(
+                recordSet(1, day = 1, pullup, setId = 1, weight = null, reps = 10),
+                recordSet(2, day = 2, pullup, setId = 2, weight = null, reps = 9),
+                recordSet(3, day = 3, pullup, setId = 3, weight = null, reps = 11),
+            ),
+        )
+        assertEquals(setOf(3L), records.keys)
+        val record = records.getValue(3).single()
+        assertEquals(PrKind.MOST_REPS, record.kind)
+        assertEquals(10.0, record.previous, 0.0)
     }
 }

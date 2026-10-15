@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import com.janreins.tonnage.data.model.PastSet
+import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
@@ -25,6 +26,9 @@ abstract class WorkoutDao {
 
     @Query("SELECT * FROM workouts WHERE id = :id")
     abstract suspend fun getWorkout(id: Long): Workout?
+
+    @Query("SELECT * FROM workouts WHERE id = :id")
+    abstract fun observeWorkout(id: Long): Flow<Workout?>
 
     @Insert
     abstract suspend fun insertWorkout(workout: Workout): Long
@@ -167,6 +171,22 @@ abstract class WorkoutDao {
     )
     abstract suspend fun deleteEmptyExercises(workoutId: Long)
 
+    @Query(
+        """
+        DELETE FROM workout_sets
+        WHERE weightKg IS NULL AND reps IS NULL AND distanceKm IS NULL AND durationSec IS NULL
+        AND workoutExerciseId IN (SELECT id FROM workout_exercises WHERE workoutId = :workoutId)
+        """,
+    )
+    abstract suspend fun deleteBlankSets(workoutId: Long)
+
+    /** After editing a finished workout: drops sets left blank and exercises left empty. */
+    @Transaction
+    open suspend fun tidyEdited(workoutId: Long) {
+        deleteBlankSets(workoutId)
+        deleteEmptyExercises(workoutId)
+    }
+
     /** Keeps only completed sets, drops exercises left empty, and moves the workout to history. */
     @Transaction
     open suspend fun finishWorkout(workoutId: Long, endedAt: Long) {
@@ -203,6 +223,21 @@ abstract class WorkoutDao {
         """,
     )
     abstract suspend fun completedSetsOf(workoutId: Long, exerciseId: String): List<WorkoutSet>
+
+    @Query(
+        """
+        SELECT w.id AS workoutId, w.startedAt AS startedAt, we.exerciseId AS exerciseId,
+               e.name AS exerciseName, e.trackingType AS trackingType,
+               ws.id AS setId, ws.weightKg AS weightKg, ws.reps AS reps
+        FROM workout_sets ws
+        INNER JOIN workout_exercises we ON ws.workoutExerciseId = we.id
+        INNER JOIN workouts w ON we.workoutId = w.id
+        LEFT JOIN exercises e ON e.id = we.exerciseId
+        WHERE w.endedAt IS NOT NULL AND ws.completed = 1 AND ws.type != 'WARMUP'
+        ORDER BY w.startedAt, w.id, we.position, ws.position
+        """,
+    )
+    abstract fun observeRecordSets(): Flow<List<RecordSet>>
 
     @Query(
         """
