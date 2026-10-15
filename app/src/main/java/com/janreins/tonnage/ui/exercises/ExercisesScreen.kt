@@ -16,12 +16,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +49,14 @@ import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.ExerciseOptions
 
+/** Turns the library into a multi-select list for adding exercises to a workout. */
+class PickerMode(
+    val selected: Set<String>,
+    val onToggle: (Exercise) -> Unit,
+    val onDone: () -> Unit,
+    val onClose: () -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExercisesScreen(
@@ -55,14 +68,37 @@ fun ExercisesScreen(
     onExerciseClick: (Exercise) -> Unit,
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier,
+    picker: PickerMode? = null,
 ) {
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { TopAppBar(title = { Text("Exercises") }) },
+        topBar = {
+            if (picker == null) {
+                TopAppBar(title = { Text("Exercises") })
+            } else {
+                TopAppBar(
+                    title = { Text("Add exercises") },
+                    navigationIcon = {
+                        IconButton(onClick = picker.onClose) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+                    },
+                    actions = {
+                        IconButton(onClick = onAddClick) { Icon(Icons.Filled.Add, contentDescription = "Create custom exercise") }
+                    },
+                )
+            }
+        },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(Icons.Filled.Add, contentDescription = "Add custom exercise")
+            if (picker == null) {
+                FloatingActionButton(onClick = onAddClick) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add custom exercise")
+                }
+            } else if (picker.selected.isNotEmpty()) {
+                ExtendedFloatingActionButton(
+                    onClick = picker.onDone,
+                    icon = { Icon(Icons.Filled.Check, contentDescription = null) },
+                    text = { Text(if (picker.selected.size == 1) "Add 1 exercise" else "Add ${picker.selected.size} exercises") },
+                )
             }
         },
     ) { padding ->
@@ -109,7 +145,11 @@ fun ExercisesScreen(
                 }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(state.exercises, key = { it.id }) { exercise ->
-                        ExerciseRow(exercise, onClick = { onExerciseClick(exercise) })
+                        ExerciseRow(
+                            exercise,
+                            selected = picker?.selected?.contains(exercise.id),
+                            onClick = { if (picker != null) picker.onToggle(exercise) else onExerciseClick(exercise) },
+                        )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     }
                 }
@@ -119,7 +159,7 @@ fun ExercisesScreen(
 }
 
 @Composable
-private fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
+private fun ExerciseRow(exercise: Exercise, selected: Boolean?, onClick: () -> Unit) {
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
         headlineContent = { Text(exercise.name) },
@@ -128,7 +168,15 @@ private fun ExerciseRow(exercise: Exercise, onClick: () -> Unit) {
             val parts = listOf(muscles, ExerciseOptions.display(exercise.equipment)).filter { it.isNotBlank() }
             Text(parts.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
-        trailingContent = if (exercise.isCustom) {
+        trailingContent = if (selected != null) {
+            {
+                Icon(
+                    if (selected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                    contentDescription = if (selected) "Selected" else null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+            }
+        } else if (exercise.isCustom) {
             { Text("Custom", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary) }
         } else {
             null

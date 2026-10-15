@@ -56,6 +56,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # Room writes its schema JSON during the build; keep it so it can be committed for migration tests.
+      - name: Upload Room schemas
+        uses: actions/upload-artifact@v4
+        with:
+          name: room-schemas
+          path: app/schemas/
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
