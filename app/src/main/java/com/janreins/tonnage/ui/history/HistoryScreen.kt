@@ -57,7 +57,7 @@ fun HistoryScreen(
             workouts.isEmpty() -> ComingSoon(
                 Icons.Filled.History,
                 "No workouts yet",
-                "Finished workouts show up here. Your Hevy history can be imported in a later update.",
+                "Finished workouts show up here. To bring in your Hevy history, use Import from Hevy on the More tab.",
                 content,
             )
             else -> LazyColumn(

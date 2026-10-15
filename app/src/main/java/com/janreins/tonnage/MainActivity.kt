@@ -30,6 +30,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.Format
+import com.janreins.tonnage.ui.data.DataViewModel
+import com.janreins.tonnage.ui.data.ImportScreen
 import com.janreins.tonnage.ui.exercises.AddExerciseDialog
 import com.janreins.tonnage.ui.exercises.ExerciseDetailScreen
 import com.janreins.tonnage.ui.exercises.ExercisesScreen
@@ -41,6 +43,7 @@ import com.janreins.tonnage.ui.history.WorkoutDetailScreen
 import com.janreins.tonnage.ui.routines.RoutineEditorScreen
 import com.janreins.tonnage.ui.routines.RoutinesViewModel
 import com.janreins.tonnage.ui.components.ComingSoon
+import com.janreins.tonnage.ui.settings.DataActions
 import com.janreins.tonnage.ui.settings.SettingsScreen
 import com.janreins.tonnage.ui.state.MainTab
 import com.janreins.tonnage.ui.theme.TonnageTheme
@@ -51,7 +54,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT }
+private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT, IMPORT_MATCH }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,6 +82,7 @@ private fun TonnageApp() {
     val workoutViewModel: WorkoutViewModel = viewModel()
     val historyViewModel: HistoryViewModel = viewModel()
     val routinesViewModel: RoutinesViewModel = viewModel()
+    val dataViewModel: DataViewModel = viewModel()
     val settings = remember { SettingsStore.get(context) }
 
     val activeWorkout by workoutViewModel.active.collectAsStateWithLifecycle()
@@ -94,10 +98,14 @@ private fun TonnageApp() {
     val openWorkout by historyViewModel.opened.collectAsStateWithLifecycle()
     val editingWorkout by historyViewModel.editing.collectAsStateWithLifecycle()
     val records by historyViewModel.records.collectAsStateWithLifecycle()
+    val importState by dataViewModel.importState.collectAsStateWithLifecycle()
+    val backupState by dataViewModel.backupState.collectAsStateWithLifecycle()
+    val library by dataViewModel.library.collectAsStateWithLifecycle()
 
     val exerciseId = openExerciseId
     val target = pickerTarget
     val editor = routineEditor
+    val importing = importState
     when {
         exerciseId != null -> {
             BackHandler { openExerciseId = null }
@@ -131,13 +139,20 @@ private fun TonnageApp() {
                 picker = PickerMode(
                     selected = pickerSelection.toSet(),
                     onToggle = { exercise ->
-                        pickerSelection = if (exercise.id in pickerSelection) pickerSelection - exercise.id else pickerSelection + exercise.id
+                        if (target == PickerTarget.IMPORT_MATCH) {
+                            // Matching a Hevy name takes one exercise, so the first tap decides.
+                            dataViewModel.picked(exercise)
+                            close()
+                        } else {
+                            pickerSelection = if (exercise.id in pickerSelection) pickerSelection - exercise.id else pickerSelection + exercise.id
+                        }
                     },
                     onDone = {
                         when (target) {
                             PickerTarget.WORKOUT -> workoutViewModel.addExercises(pickerSelection)
                             PickerTarget.ROUTINE -> routinesViewModel.addExercises(pickerSelection)
                             PickerTarget.EDITED_WORKOUT -> historyViewModel.addExercises(pickerSelection)
+                            PickerTarget.IMPORT_MATCH -> Unit
                         }
                         close()
                     },
@@ -150,6 +165,20 @@ private fun TonnageApp() {
             blocks = routineBlocks,
             viewModel = routinesViewModel,
             onAddExercise = { pickerTarget = PickerTarget.ROUTINE },
+            modifier = Modifier.fillMaxSize(),
+        )
+        importing != null -> ImportScreen(
+            state = importing,
+            library = library,
+            viewModel = dataViewModel,
+            onSearch = { hevyName ->
+                dataViewModel.pickFor(hevyName)
+                pickerTarget = PickerTarget.IMPORT_MATCH
+            },
+            onViewHistory = {
+                dataViewModel.closeImport()
+                tab = MainTab.HISTORY
+            },
             modifier = Modifier.fillMaxSize(),
         )
         openWorkoutId != null -> WorkoutDetailScreen(
@@ -206,7 +235,19 @@ private fun TonnageApp() {
                     )
                     MainTab.MORE -> {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
-                        SettingsScreen(restSeconds, settings::setDefaultRestSeconds, modifier)
+                        SettingsScreen(
+                            defaultRestSeconds = restSeconds,
+                            onDefaultRestChange = settings::setDefaultRestSeconds,
+                            backupState = backupState,
+                            data = DataActions(
+                                onImportHevy = dataViewModel::startImport,
+                                onSaveBackup = dataViewModel::saveBackup,
+                                onOpenBackup = dataViewModel::openBackup,
+                                onConfirmRestore = dataViewModel::confirmRestore,
+                                onDismissBackup = dataViewModel::dismissBackup,
+                            ),
+                            modifier = modifier,
+                        )
                     }
                 }
             },
