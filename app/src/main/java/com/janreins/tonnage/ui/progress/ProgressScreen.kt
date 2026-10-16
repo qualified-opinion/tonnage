@@ -44,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.ExerciseOptions
@@ -54,8 +55,12 @@ import com.janreins.tonnage.domain.MuscleSets
 import com.janreins.tonnage.domain.NextMilestone
 import com.janreins.tonnage.domain.Progress
 import com.janreins.tonnage.domain.ProgressMetric
+import com.janreins.tonnage.ui.components.BODY_MAP_TOTAL_WIDTH
 import com.janreins.tonnage.ui.components.BarChart
+import com.janreins.tonnage.ui.components.BodyMap
+import com.janreins.tonnage.ui.components.BodyMapGeometry
 import com.janreins.tonnage.ui.components.ComingSoon
+import com.janreins.tonnage.ui.components.bodyMapColor
 import com.janreins.tonnage.ui.theme.PrGold
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -186,49 +191,118 @@ private fun StreakLine(overview: ProgressOverview) {
     }
 }
 
-/** Working sets per main muscle, as bars whose colour deepens with the number of sets. */
+private fun muscleName(muscle: String): String =
+    if (muscle == Progress.OTHER_MUSCLE) "Other" else ExerciseOptions.display(muscle)
+
+private fun setCount(sets: Int): String = "$sets ${if (sets == 1) "set" else "sets"}"
+
+/**
+ * Working sets per main muscle as a heat map on front and back body figures: the more sets, the
+ * deeper the green. Tapping a muscle shows its sets, and the full list sits behind "Show list".
+ */
 @Composable
 private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
+    var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    var showList by rememberSaveable { mutableStateOf(false) }
+    val setsByMuscle = muscles.associate { it.muscle to it.sets }
+    val unmapped = muscles.filter { it.muscle !in BodyMapGeometry.muscles }.sumOf { it.sets }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Muscles worked", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Working sets by main muscle, for the week above.",
+                "Working sets by main muscle, for the week above. Tap a muscle to see its sets.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (muscles.isEmpty()) {
                 Text(if (isThisWeek) "No sets logged yet this week." else "No sets logged that week.", style = MaterialTheme.typography.bodyMedium)
             }
-            val most = muscles.maxOfOrNull { it.sets } ?: 1
-            muscles.forEach { muscle ->
-                val share = muscle.sets / most.toFloat()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (muscle.muscle == Progress.OTHER_MUSCLE) "Other" else ExerciseOptions.display(muscle.muscle),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(110.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Box(Modifier.weight(1f).height(14.dp)) {
-                        Box(
-                            Modifier
-                                .fillMaxWidth(share)
-                                .fillMaxHeight()
-                                .background(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f + 0.7f * share),
-                                    RoundedCornerShape(4.dp),
-                                ),
+            BodyMap(
+                setsByMuscle = setsByMuscle,
+                selected = selected,
+                onSelect = { selected = if (it == selected) null else it },
+                description = if (muscles.isEmpty()) {
+                    "Body map with no muscles worked"
+                } else {
+                    "Body map of sets per muscle: " + muscles.joinToString { "${muscleName(it.muscle)} ${setCount(it.sets)}" }
+                },
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+            Row(Modifier.fillMaxWidth()) {
+                listOf("Front" to BodyMapGeometry.WIDTH, "" to BODY_MAP_TOTAL_WIDTH - 2 * BodyMapGeometry.WIDTH, "Back" to BodyMapGeometry.WIDTH)
+                    .forEach { (label, width) ->
+                        Text(
+                            label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(width),
                         )
                     }
-                    Text(
-                        muscle.sets.toString(),
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.width(32.dp).padding(start = 8.dp),
-                    )
-                }
             }
+            Text(
+                selected?.let { "${muscleName(it)}: ${setCount(setsByMuscle[it] ?: 0)}" } ?: "Tap a muscle to see its sets",
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            HeatLegend(Modifier.align(Alignment.CenterHorizontally))
+            if (unmapped > 0) {
+                Text(
+                    "Plus ${setCount(unmapped)} of exercises with no muscle set.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (muscles.isNotEmpty()) {
+                TextButton(onClick = { showList = !showList }) { Text(if (showList) "Hide list" else "Show list") }
+            }
+            if (showList) MuscleBars(muscles)
+        }
+    }
+}
+
+/** Swatches from unworked to most worked, so the shading can be read. */
+@Composable
+private fun HeatLegend(modifier: Modifier = Modifier) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("None", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        listOf(0f, 0.35f, 0.57f, 0.78f, 1f).forEach { shade ->
+            Box(Modifier.size(width = 22.dp, height = 10.dp).background(bodyMapColor(shade), RoundedCornerShape(3.dp)))
+        }
+        Text("Most sets", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Working sets per main muscle, as bars whose colour deepens with the number of sets. */
+@Composable
+private fun MuscleBars(muscles: List<MuscleSets>) {
+    val most = muscles.maxOfOrNull { it.sets } ?: 1
+    muscles.forEach { muscle ->
+        val share = muscle.sets / most.toFloat()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                muscleName(muscle.muscle),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.width(110.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Box(Modifier.weight(1f).height(14.dp)) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(share)
+                        .fillMaxHeight()
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.3f + 0.7f * share),
+                            RoundedCornerShape(4.dp),
+                        ),
+                )
+            }
+            Text(
+                muscle.sets.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.width(32.dp).padding(start = 8.dp),
+            )
         }
     }
 }
