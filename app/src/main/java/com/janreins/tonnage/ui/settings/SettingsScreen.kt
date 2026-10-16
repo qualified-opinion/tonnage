@@ -134,7 +134,7 @@ fun SettingsScreen(
                 },
                 leadingContent = { Icon(Icons.Filled.Save, contentDescription = null) },
                 headlineContent = { Text("Back up to a file") },
-                supportingContent = { Text("Saves your workouts, routines and custom exercises. Keep it in Drive or email it to yourself.") },
+                supportingContent = { Text("Saves your workouts, routines and custom exercises. Keep it in Drive or email it to yourself.\nA workout in progress isn't included in a backup.") },
             )
             ListItem(
                 modifier = Modifier.clickable { openFile.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
