@@ -44,7 +44,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.ExerciseOptions
@@ -55,12 +54,11 @@ import com.janreins.tonnage.domain.MuscleSets
 import com.janreins.tonnage.domain.NextMilestone
 import com.janreins.tonnage.domain.Progress
 import com.janreins.tonnage.domain.ProgressMetric
-import com.janreins.tonnage.ui.components.BODY_MAP_TOTAL_WIDTH
 import com.janreins.tonnage.ui.components.BarChart
 import com.janreins.tonnage.ui.components.BodyMap
-import com.janreins.tonnage.ui.components.BodyMapGeometry
 import com.janreins.tonnage.ui.components.ComingSoon
 import com.janreins.tonnage.ui.components.bodyMapColor
+import com.janreins.tonnage.ui.components.rememberBodyMapArt
 import com.janreins.tonnage.ui.theme.PrGold
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -206,7 +204,8 @@ private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
     var selectedPart by rememberSaveable { mutableStateOf<String?>(null) }
     var showList by rememberSaveable { mutableStateOf(false) }
     val setsByMuscle = muscles.associate { it.muscle to it.sets }
-    val unmapped = muscles.filter { it.muscle !in BodyMapGeometry.muscles }.sumOf { it.sets }
+    val mapped = rememberBodyMapArt().muscles
+    val unmapped = muscles.filter { it.muscle !in mapped }.sumOf { it.sets }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Muscles worked", style = MaterialTheme.typography.titleMedium)
@@ -233,18 +232,6 @@ private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
                 },
                 modifier = Modifier.padding(vertical = 4.dp),
             )
-            Row(Modifier.fillMaxWidth()) {
-                listOf("Front" to BodyMapGeometry.WIDTH, "" to BODY_MAP_TOTAL_WIDTH - 2 * BodyMapGeometry.WIDTH, "Back" to BodyMapGeometry.WIDTH)
-                    .forEach { (label, width) ->
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.weight(width),
-                        )
-                    }
-            }
             Text(
                 selected?.let { muscle ->
                     val name = muscleName(muscle)
@@ -275,7 +262,7 @@ private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
 private fun HeatLegend(modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("None", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        listOf(0f, 0.35f, 0.57f, 0.78f, 1f).forEach { shade ->
+        listOf(0f, 0.25f, 0.5f, 0.75f, 1f).forEach { shade ->
             Box(Modifier.size(width = 22.dp, height = 10.dp).background(bodyMapColor(shade), RoundedCornerShape(3.dp)))
         }
         Text("Most sets", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Timer
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.domain.Format
+import com.janreins.tonnage.ui.components.BodyMapArt
 import com.janreins.tonnage.ui.data.BackupState
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -139,6 +141,23 @@ fun SettingsScreen(
                 leadingContent = { Icon(Icons.Filled.Restore, contentDescription = null) },
                 headlineContent = { Text("Restore from a backup") },
                 supportingContent = { Text("Replaces everything in Tonnage with the backup's contents") },
+            )
+            HorizontalDivider()
+            Text(
+                "Credits",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+            )
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
+                headlineContent = { Text("Body map artwork") },
+                supportingContent = { Text(BodyMapArt.CREDIT) },
+            )
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
+                headlineContent = { Text("Exercise library") },
+                supportingContent = { Text("From free-exercise-db by yuhonas, public domain.") },
             )
         }
     }
