@@ -200,6 +200,38 @@ class BackupTest {
     }
 
     @Test
+    fun hugeWorkoutRoutineIdsAreRejectedWithoutChanges() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf(Long.MAX_VALUE, Int.MAX_VALUE.toLong() + 1).forEach { id ->
+            val damaged = JSONObject(text).apply { firstWorkout().put("routineId", id) }
+            assertRejectedWithoutChanges(damaged.toString())
+        }
+    }
+
+    @Test
+    fun hugeRoutineIdsAreRejectedWithoutChanges() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf(Long.MAX_VALUE, Int.MAX_VALUE.toLong() + 1).forEach { id ->
+            val damaged = JSONObject(text).apply { firstRoutine().put("id", id) }
+            assertRejectedWithoutChanges(damaged.toString())
+        }
+    }
+
+    @Test
+    fun zeroRoutineIdIsRejectedWithoutChanges() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.firstRoutine().put("id", 0)
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun zeroWorkoutRoutineIdIsRejectedWithoutChanges() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.firstWorkout().put("routineId", 0)
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
     fun danglingWorkoutRoutineAndMappingReferencesAreRejectedBeforeDeletes() = runTest {
         forbidDeletes()
         val text = BackupJson.write(backupOf(db))
@@ -240,7 +272,7 @@ class BackupTest {
             defaultRestSeconds = Int.MAX_VALUE,
             workouts = original.workouts.map { w ->
                 w.copy(
-                    workout = w.workout.copy(routineId = 9_007_199_254_740_993L),
+                    workout = w.workout.copy(routineId = Int.MAX_VALUE.toLong()),
                     exercises = w.exercises.map { (exercise, sets) ->
                         exercise to sets.map { it.copy(
                             weightKg = Double.MAX_VALUE, distanceKm = Double.MIN_VALUE, rpe = 0.0,

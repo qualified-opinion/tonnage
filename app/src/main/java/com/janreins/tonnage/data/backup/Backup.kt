@@ -198,6 +198,11 @@ object BackupJson {
         return value.toInt()
     }
 
+    private fun routineId(value: Long): Long {
+        if (value !in 1L..Int.MAX_VALUE.toLong()) throw BackupFormatException()
+        return value
+    }
+
     // putOpt omits nullable numbers in the exporter; their absence is intentional.
     private fun JSONObject.doubleOrNull(key: String): Double? {
         if (!has(key) || isNull(key)) return null
@@ -232,7 +237,7 @@ object BackupJson {
             endedAt = o.longOrNull("endedAt") ?: o.longValue("startedAt"),
             notes = o.string("notes"),
             source = o.string("source"),
-            routineId = o.longOrNull("routineId"),
+            routineId = o.longOrNull("routineId")?.let(::routineId),
         ),
         exercises = o.objects("exercises").mapIndexed { index, e ->
             WorkoutExercise(
@@ -260,7 +265,7 @@ object BackupJson {
 
     private fun routine(o: JSONObject) = RoutineContents(
         routine = Routine(
-            id = o.longValue("id"),
+            id = routineId(o.longValue("id")),
             name = o.string("name"),
             notes = o.string("notes"),
             position = o.intValue("position"),
