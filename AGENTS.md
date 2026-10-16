@@ -31,3 +31,4 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Room migrations**: `MigrationTest` builds the previous schema by hand and opens it with the current app; add a case there for every new migration.
 - Navigation is a simple tab enum (`ui/state/MainTab`) plus screen state in `MainActivity`, as in Piso.
 - Plan and acceptance notes for later phases live in the project files (`workout-app/plan.md`, `workout-app/implementation-notes.md`).
+- Status, roadmap and handoff packs live in `docs/plan/ROADMAP.md`. Read it before starting work and update it in every batch PR.
