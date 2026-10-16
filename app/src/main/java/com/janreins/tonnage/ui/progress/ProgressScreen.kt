@@ -203,6 +203,7 @@ private fun setCount(sets: Int): String = "$sets ${if (sets == 1) "set" else "se
 @Composable
 private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedPart by rememberSaveable { mutableStateOf<String?>(null) }
     var showList by rememberSaveable { mutableStateOf(false) }
     val setsByMuscle = muscles.associate { it.muscle to it.sets }
     val unmapped = muscles.filter { it.muscle !in BodyMapGeometry.muscles }.sumOf { it.sets }
@@ -220,7 +221,11 @@ private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
             BodyMap(
                 setsByMuscle = setsByMuscle,
                 selected = selected,
-                onSelect = { selected = if (it == selected) null else it },
+                onSelect = { region ->
+                    val same = region?.muscle == selected && region?.part == selectedPart
+                    selected = if (same) null else region?.muscle
+                    selectedPart = if (same) null else region?.part
+                },
                 description = if (muscles.isEmpty()) {
                     "Body map with no muscles worked"
                 } else {
@@ -241,7 +246,11 @@ private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
                     }
             }
             Text(
-                selected?.let { "${muscleName(it)}: ${setCount(setsByMuscle[it] ?: 0)}" } ?: "Tap a muscle to see its sets",
+                selected?.let { muscle ->
+                    val name = muscleName(muscle)
+                    val part = selectedPart?.takeUnless { it.equals(name, ignoreCase = true) }
+                    "${part?.let { "$it · " }.orEmpty()}$name: ${setCount(setsByMuscle[muscle] ?: 0)}"
+                } ?: "Tap a muscle to see its sets",
                 style = MaterialTheme.typography.titleSmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )

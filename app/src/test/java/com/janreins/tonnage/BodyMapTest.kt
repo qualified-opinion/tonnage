@@ -32,6 +32,21 @@ class BodyMapTest {
     }
 
     @Test
+    fun tapsNameTheSmallerPart() {
+        assertEquals("Front delts", BodyMapGeometry.regionAt(BodyMapGeometry.front, 32f, 37f)?.part)
+        assertEquals("Side delts", BodyMapGeometry.regionAt(BodyMapGeometry.front, 23f, 42f)?.part)
+        assertEquals("Rear delts", BodyMapGeometry.regionAt(BodyMapGeometry.back, 31f, 37f)?.part)
+        assertEquals("Upper chest", BodyMapGeometry.regionAt(BodyMapGeometry.front, 42f, 37f)?.part)
+        assertEquals("Lower chest", BodyMapGeometry.regionAt(BodyMapGeometry.front, 42f, 50f)?.part)
+        assertEquals("shoulders", BodyMapGeometry.regionAt(BodyMapGeometry.back, 31f, 37f)?.muscle)
+    }
+
+    @Test
+    fun everyMuscleRegionNamesItsPart() {
+        (BodyMapGeometry.front + BodyMapGeometry.back).forEach { assertTrue(it.muscle != null && !it.part.isNullOrBlank()) }
+    }
+
+    @Test
     fun regionsStayInsideTheFigure() {
         (BodyMapGeometry.silhouette + BodyMapGeometry.front + BodyMapGeometry.back).flatMap { it.points }.forEach {
             assertTrue(it.x in 0f..BodyMapGeometry.WIDTH && it.y in 0f..BodyMapGeometry.HEIGHT)

@@ -52,13 +52,14 @@ private fun pathsFor(regions: List<BodyRegion>): List<RegionPath> = regions.map 
 
 /**
  * Front and back body figures with each muscle shaded by its number of sets in [setsByMuscle].
- * Tapping a muscle calls [onSelect] with its name (or null for empty space); [selected] is outlined.
+ * Tapping calls [onSelect] with the region under the finger (null for empty space); every region of
+ * the [selected] muscle group is outlined.
  */
 @Composable
 fun BodyMap(
     setsByMuscle: Map<String, Int>,
     selected: String?,
-    onSelect: (String?) -> Unit,
+    onSelect: (BodyRegion?) -> Unit,
     description: String,
     modifier: Modifier = Modifier,
 ) {
@@ -84,8 +85,8 @@ fun BodyMap(
                     val y = tap.y / factor
                     select(
                         when {
-                            x in 0f..BodyMapGeometry.WIDTH -> BodyMapGeometry.muscleAt(BodyMapGeometry.front, x, y)
-                            x >= BODY_MAP_BACK_X -> BodyMapGeometry.muscleAt(BodyMapGeometry.back, x - BODY_MAP_BACK_X, y)
+                            x in 0f..BodyMapGeometry.WIDTH -> BodyMapGeometry.regionAt(BodyMapGeometry.front, x, y)
+                            x >= BODY_MAP_BACK_X -> BodyMapGeometry.regionAt(BodyMapGeometry.back, x - BODY_MAP_BACK_X, y)
                             else -> null
                         },
                     )
