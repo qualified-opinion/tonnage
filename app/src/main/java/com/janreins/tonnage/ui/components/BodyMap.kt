@@ -52,19 +52,18 @@ private fun pathsFor(regions: List<BodyRegion>): List<RegionPath> = regions.map 
 
 /**
  * Front and back body figures with each muscle shaded by its number of sets in [setsByMuscle].
- * Tapping a muscle calls [onSelect] with its name (or null for empty space); [selected] is outlined.
+ * Tapping calls [onSelect] with the region under the finger (null for empty space); every region of
+ * the [selected] muscle group is outlined.
  */
 @Composable
 fun BodyMap(
     setsByMuscle: Map<String, Int>,
     selected: String?,
-    onSelect: (String?) -> Unit,
+    onSelect: (BodyRegion?) -> Unit,
     description: String,
     modifier: Modifier = Modifier,
 ) {
     val body = MaterialTheme.colorScheme.surface
-    // The filled card's colour, so neighbouring muscles are separated by a thin gap.
-    val divider = MaterialTheme.colorScheme.surfaceContainerHighest
     val highlight = MaterialTheme.colorScheme.onSurface
     val most = setsByMuscle.filterKeys { it in BodyMapGeometry.muscles }.values.maxOrNull() ?: 0
     val colors = BodyMapGeometry.muscles.associateWith { bodyMapColor(BodyMapGeometry.shade(setsByMuscle[it] ?: 0, most)) }
@@ -86,8 +85,8 @@ fun BodyMap(
                     val y = tap.y / factor
                     select(
                         when {
-                            x in 0f..BodyMapGeometry.WIDTH -> BodyMapGeometry.muscleAt(BodyMapGeometry.front, x, y)
-                            x >= BODY_MAP_BACK_X -> BodyMapGeometry.muscleAt(BodyMapGeometry.back, x - BODY_MAP_BACK_X, y)
+                            x in 0f..BodyMapGeometry.WIDTH -> BodyMapGeometry.regionAt(BodyMapGeometry.front, x, y)
+                            x >= BODY_MAP_BACK_X -> BodyMapGeometry.regionAt(BodyMapGeometry.back, x - BODY_MAP_BACK_X, y)
                             else -> null
                         },
                     )
@@ -101,7 +100,7 @@ fun BodyMap(
                 translate(left + x * factor, 0f)
                 scale(factor, factor, pivot = Offset.Zero)
             }) {
-                drawFigure(silhouette, muscles, body, divider, highlight, colors, selected)
+                drawFigure(silhouette, muscles, body, highlight, colors, selected)
             }
         }
     }
@@ -111,7 +110,6 @@ private fun DrawScope.drawFigure(
     silhouette: List<RegionPath>,
     muscles: List<RegionPath>,
     body: Color,
-    divider: Color,
     highlight: Color,
     colors: Map<String, Color>,
     selected: String?,
@@ -122,10 +120,15 @@ private fun DrawScope.drawFigure(
         topLeft = Offset(head.x - BodyMapGeometry.HEAD_RADIUS_X, head.y - BodyMapGeometry.HEAD_RADIUS_Y),
         size = Size(BodyMapGeometry.HEAD_RADIUS_X * 2, BodyMapGeometry.HEAD_RADIUS_Y * 2),
     )
-    silhouette.forEach { drawPath(it.path, body) }
+    silhouette.forEach {
+        drawPath(it.path, body)
+        // Covers the hairline seam where the two mirrored halves meet.
+        drawPath(it.path, body, style = Stroke(width = 0.5f))
+    }
     muscles.forEach { region ->
         drawPath(region.path, colors[region.muscle] ?: body)
-        drawPath(region.path, divider, style = Stroke(width = 0.8f, join = StrokeJoin.Round))
+        // Neighbouring muscles overlap slightly; a body-coloured outline separates them.
+        drawPath(region.path, body, style = Stroke(width = 0.9f, join = StrokeJoin.Round))
     }
     muscles.filter { it.muscle != null && it.muscle == selected }.forEach {
         drawPath(it.path, highlight, style = Stroke(width = 1.6f, join = StrokeJoin.Round))
