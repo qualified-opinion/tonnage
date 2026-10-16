@@ -1,0 +1,96 @@
+{
+ "format": "tonnage-backup",
+ "schemaVersion": 1,
+ "exportedAt": 99,
+ "settings": {
+  "defaultRestSeconds": 75
+ },
+ "customExercises": [
+  {
+   "id": "custom-1",
+   "name": "Landmine Press",
+   "category": "custom",
+   "equipment": "other",
+   "primaryMuscles": "shoulders",
+   "secondaryMuscles": "",
+   "mechanic": "",
+   "instructions": "",
+   "trackingType": "WEIGHT_REPS",
+   "createdAt": 1000
+  }
+ ],
+ "workouts": [
+  {
+   "title": "Push",
+   "startedAt": 10000,
+   "endedAt": 10000,
+   "notes": "",
+   "source": "app",
+   "exercises": [
+    {
+     "exerciseId": "bench",
+     "restSeconds": 120,
+     "notes": "",
+     "sets": [
+      {
+       "type": "WARMUP",
+       "weightKg": 40,
+       "reps": 10,
+       "completed": true,
+       "completedAt": 10000
+      },
+      {
+       "type": "NORMAL",
+       "weightKg": 40,
+       "reps": 10,
+       "completed": true,
+       "completedAt": 10000
+      }
+     ]
+    },
+    {
+     "exerciseId": "custom-1",
+     "restSeconds": 120,
+     "notes": "",
+     "sets": [
+      {
+       "type": "NORMAL",
+       "weightKg": 22.5,
+       "reps": 8,
+       "completed": true,
+       "completedAt": 10000
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "routines": [
+  {
+   "id": 1,
+   "name": "Push A",
+   "notes": "",
+   "position": 0,
+   "createdAt": 1792188588365,
+   "exercises": [
+    {
+     "exerciseId": "custom-1",
+     "restSeconds": 90,
+     "sets": [
+      {
+       "type": "NORMAL",
+       "weightKg": 20,
+       "reps": 12
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "hevyMappings": [
+  {
+   "hevyName": "landmine press",
+   "exerciseId": "custom-1"
+  }
+ ]
+}

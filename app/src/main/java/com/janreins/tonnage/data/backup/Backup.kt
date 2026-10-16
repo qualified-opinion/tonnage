@@ -14,6 +14,8 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import org.json.JSONTokener
+import java.math.BigDecimal
 
 /** A finished workout with its exercises and sets, as kept in a backup. */
 data class BackupWorkout(val workout: Workout, val exercises: List<Pair<WorkoutExercise, List<WorkoutSet>>>)
@@ -28,7 +30,7 @@ data class BackupContents(
     val hevyMappings: List<HevyMapping>,
 )
 
-class BackupFormatException(message: String) : Exception(message)
+class BackupFormatException(message: String = "This file is incomplete or damaged. Nothing was changed.") : Exception(message)
 
 /**
  * The backup file format: JSON with a `schemaVersion`, so a later version of the app can read
@@ -55,27 +57,27 @@ object BackupJson {
 
     fun read(text: String): BackupContents {
         val root = try {
-            JSONObject(text)
+            JSONObject(ExactNumberTokener(text))
         } catch (e: JSONException) {
-            throw BackupFormatException("This file isn't a Tonnage backup.")
+            throw BackupFormatException()
         }
-        if (root.optString("format") != FORMAT) throw BackupFormatException("This file isn't a Tonnage backup.")
-        val version = root.optInt("schemaVersion", 0)
+        if (root.opt("format") != FORMAT) throw BackupFormatException()
+        val version = root.intValue("schemaVersion")
         if (version > SCHEMA_VERSION) {
             throw BackupFormatException("This backup was made by a newer version of Tonnage. Update the app, then restore it.")
         }
         if (version < 1) throw BackupFormatException("This backup's version isn't recognised.")
         return try {
             BackupContents(
-                exportedAt = root.optLong("exportedAt"),
-                defaultRestSeconds = root.optJSONObject("settings")?.optInt("defaultRestSeconds", 90) ?: 90,
+                exportedAt = root.longValue("exportedAt"),
+                defaultRestSeconds = root.getJSONObject("settings").intValue("defaultRestSeconds"),
                 customExercises = root.objects("customExercises").map(::exercise),
                 workouts = root.objects("workouts").map(::workout),
                 routines = root.objects("routines").map(::routine),
-                hevyMappings = root.objects("hevyMappings").map { HevyMapping(it.getString("hevyName"), it.getString("exerciseId")) },
+                hevyMappings = root.objects("hevyMappings").map { HevyMapping(it.string("hevyName"), it.string("exerciseId")) },
             )
         } catch (e: JSONException) {
-            throw BackupFormatException("This backup is damaged and can't be read (${e.message}).")
+            throw BackupFormatException()
         }
     }
 
@@ -157,58 +159,104 @@ object BackupJson {
 
     // Reading
 
+    /** Keep integer tokens exact: JSONTokener otherwise rounds fractions/overflow through Double. */
+    private class ExactNumberTokener(text: String) : JSONTokener(text) {
+        override fun nextValue(): Any {
+            val first = nextClean()
+            back()
+            if (first == '-' || first in '0'..'9') {
+                return nextTo(",]} \t\r\n").toBigDecimalOrNull() ?: throw syntaxError("Invalid number")
+            }
+            return super.nextValue()
+        }
+    }
+
     private fun JSONObject.objects(key: String): List<JSONObject> {
-        val array = optJSONArray(key) ?: return emptyList()
+        val array = getJSONArray(key)
         return (0 until array.length()).map { array.getJSONObject(it) }
     }
 
-    private fun JSONObject.doubleOrNull(key: String): Double? = if (has(key) && !isNull(key)) getDouble(key) else null
-    private fun JSONObject.intOrNull(key: String): Int? = if (has(key) && !isNull(key)) getInt(key) else null
-    private fun JSONObject.longOrNull(key: String): Long? = if (has(key) && !isNull(key)) getLong(key) else null
+    private fun JSONObject.string(key: String): String = get(key) as? String ?: throw BackupFormatException()
+    private fun JSONObject.boolean(key: String): Boolean = get(key) as? Boolean ?: throw BackupFormatException()
+
+    private fun JSONObject.number(key: String): BigDecimal {
+        val value = opt(key) as? Number ?: throw BackupFormatException()
+        val decimal = value.toString().toBigDecimalOrNull() ?: throw BackupFormatException()
+        if (decimal.signum() < 0) throw BackupFormatException()
+        return decimal
+    }
+
+    private fun JSONObject.longValue(key: String): Long = try {
+        number(key).longValueExact()
+    } catch (e: ArithmeticException) {
+        throw BackupFormatException()
+    }
+
+    private fun JSONObject.intValue(key: String): Int {
+        val value = longValue(key)
+        if (value > Int.MAX_VALUE) throw BackupFormatException()
+        return value.toInt()
+    }
+
+    private fun routineId(value: Long): Long {
+        if (value !in 1L..Int.MAX_VALUE.toLong()) throw BackupFormatException()
+        return value
+    }
+
+    // putOpt omits nullable numbers in the exporter; their absence is intentional.
+    private fun JSONObject.doubleOrNull(key: String): Double? {
+        if (!has(key) || isNull(key)) return null
+        val value = number(key).toDouble()
+        if (!value.isFinite()) throw BackupFormatException()
+        return value
+    }
+
+    private fun JSONObject.intOrNull(key: String): Int? = if (has(key) && !isNull(key)) intValue(key) else null
+    private fun JSONObject.longOrNull(key: String): Long? = if (has(key) && !isNull(key)) longValue(key) else null
 
     private fun setType(name: String) = SetType.entries.firstOrNull { it.name == name } ?: SetType.NORMAL
 
     private fun exercise(o: JSONObject) = Exercise(
-        id = o.getString("id"),
-        name = o.getString("name"),
-        category = o.optString("category", "custom"),
-        equipment = o.optString("equipment", "other"),
-        primaryMuscles = o.optString("primaryMuscles"),
-        secondaryMuscles = o.optString("secondaryMuscles"),
-        mechanic = o.optString("mechanic"),
-        instructions = o.optString("instructions"),
-        trackingType = TrackingType.entries.firstOrNull { it.name == o.optString("trackingType") } ?: TrackingType.WEIGHT_REPS,
+        id = o.string("id"),
+        name = o.string("name"),
+        category = o.string("category"),
+        equipment = o.string("equipment"),
+        primaryMuscles = o.string("primaryMuscles"),
+        secondaryMuscles = o.string("secondaryMuscles"),
+        mechanic = o.string("mechanic"),
+        instructions = o.string("instructions"),
+        trackingType = o.string("trackingType").let { name -> TrackingType.entries.firstOrNull { it.name == name } } ?: TrackingType.WEIGHT_REPS,
         isCustom = true,
-        createdAt = o.optLong("createdAt"),
+        createdAt = o.longValue("createdAt"),
     )
 
     private fun workout(o: JSONObject) = BackupWorkout(
         workout = Workout(
-            title = o.getString("title"),
-            startedAt = o.getLong("startedAt"),
-            endedAt = o.longOrNull("endedAt") ?: o.getLong("startedAt"),
-            notes = o.optString("notes"),
-            source = o.optString("source", Workout.SOURCE_APP),
-            routineId = o.longOrNull("routineId"),
+            title = o.string("title"),
+            startedAt = o.longValue("startedAt"),
+            endedAt = o.longOrNull("endedAt") ?: o.longValue("startedAt"),
+            notes = o.string("notes"),
+            source = o.string("source"),
+            routineId = o.longOrNull("routineId")?.let(::routineId),
         ),
         exercises = o.objects("exercises").mapIndexed { index, e ->
             WorkoutExercise(
                 workoutId = 0,
-                exerciseId = e.getString("exerciseId"),
+                exerciseId = e.string("exerciseId"),
                 position = index,
-                restSeconds = e.optInt("restSeconds", 90),
-                notes = e.optString("notes"),
+                restSeconds = e.intValue("restSeconds"),
+                notes = e.string("notes"),
             ) to e.objects("sets").mapIndexed { setIndex, s ->
                 WorkoutSet(
                     workoutExerciseId = 0,
                     position = setIndex,
-                    type = setType(s.optString("type")),
+                    type = setType(s.string("type")),
                     weightKg = s.doubleOrNull("weightKg"),
                     reps = s.intOrNull("reps"),
                     distanceKm = s.doubleOrNull("distanceKm"),
                     durationSec = s.intOrNull("durationSec"),
                     rpe = s.doubleOrNull("rpe"),
-                    completed = s.optBoolean("completed", true),
+                    completed = s.boolean("completed"),
                     completedAt = s.longOrNull("completedAt"),
                 )
             }
@@ -217,19 +265,19 @@ object BackupJson {
 
     private fun routine(o: JSONObject) = RoutineContents(
         routine = Routine(
-            id = o.getLong("id"),
-            name = o.getString("name"),
-            notes = o.optString("notes"),
-            position = o.optInt("position"),
-            createdAt = o.optLong("createdAt"),
+            id = routineId(o.longValue("id")),
+            name = o.string("name"),
+            notes = o.string("notes"),
+            position = o.intValue("position"),
+            createdAt = o.longValue("createdAt"),
         ),
         exercises = o.objects("exercises").mapIndexed { index, e ->
-            RoutineExercise(routineId = 0, exerciseId = e.getString("exerciseId"), position = index, restSeconds = e.optInt("restSeconds", 90)) to
+            RoutineExercise(routineId = 0, exerciseId = e.string("exerciseId"), position = index, restSeconds = e.intValue("restSeconds")) to
                 e.objects("sets").mapIndexed { setIndex, s ->
                     RoutineSet(
                         routineExerciseId = 0,
                         position = setIndex,
-                        type = setType(s.optString("type")),
+                        type = setType(s.string("type")),
                         weightKg = s.doubleOrNull("weightKg"),
                         reps = s.intOrNull("reps"),
                         distanceKm = s.doubleOrNull("distanceKm"),

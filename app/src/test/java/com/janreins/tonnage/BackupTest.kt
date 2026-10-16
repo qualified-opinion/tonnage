@@ -19,6 +19,7 @@ import com.janreins.tonnage.data.repository.RoutineRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -86,6 +87,249 @@ class BackupTest {
     fun tearDown() = opened.forEach { it.close() }
 
     private suspend fun backupOf(database: AppDatabase) = BackupRepository(database, now = { 99L }).export(defaultRestSeconds = 75)
+
+    private suspend fun assertRejectedWithoutChanges(text: String) {
+        val before = backupOf(db)
+        val exercisesBefore = db.importDao().allExercises()
+        val error = runCatching { BackupRepository(db).restore(BackupJson.read(text)) }.exceptionOrNull()
+        assertTrue("Expected a format error for $text, got $error", error is BackupFormatException)
+        assertEquals("This file is incomplete or damaged. Nothing was changed.", error?.message)
+        assertEquals(before, backupOf(db))
+        assertEquals(exercisesBefore, db.importDao().allExercises())
+    }
+
+    private fun JSONObject.firstWorkout() = getJSONArray("workouts").getJSONObject(0)
+    private fun JSONObject.firstRoutine() = getJSONArray("routines").getJSONObject(0)
+    private fun JSONObject.firstExercise() = getJSONArray("exercises").getJSONObject(0)
+    private fun JSONObject.firstSet() = firstExercise().getJSONArray("sets").getJSONObject(0)
+
+    @Test
+    fun missingCustomExercisesCannotDeleteExistingData() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db))).apply { remove("customExercises") }
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun twoFieldFileIsRejectedWithoutChanges() = runTest {
+        assertRejectedWithoutChanges("""{"format":"tonnage-backup","schemaVersion":1}""")
+    }
+
+    @Test
+    fun everyTopLevelSectionAndMetadataFieldIsRequiredWithItsExportedType() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf("format", "schemaVersion", "exportedAt", "settings", "customExercises", "workouts", "routines", "hevyMappings").forEach { key ->
+            assertRejectedWithoutChanges(JSONObject(text).apply { remove(key) }.toString())
+            listOf(JSONObject.NULL, "wrong type", true, JSONObject()).forEach { wrong ->
+                assertRejectedWithoutChanges(JSONObject(text).put(key, wrong).toString())
+            }
+        }
+        listOf(JSONObject.NULL, "1", 1.5, true).forEach { wrong ->
+            assertRejectedWithoutChanges(JSONObject(text).put("schemaVersion", wrong).toString())
+        }
+        assertRejectedWithoutChanges(JSONObject(text).apply { getJSONObject("settings").remove("defaultRestSeconds") }.toString())
+    }
+
+    @Test
+    fun nestedExerciseAndSetArraysMustBePresentAndArrays() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf<(JSONObject) -> JSONObject>(
+            { it.firstWorkout() }, { it.firstWorkout().firstExercise() },
+            { it.firstRoutine() }, { it.firstRoutine().firstExercise() },
+        ).forEachIndexed { index, parent ->
+            val key = if (index % 2 == 0) "exercises" else "sets"
+            assertRejectedWithoutChanges(JSONObject(text).apply { parent(this).remove(key) }.toString())
+            listOf(JSONObject.NULL, JSONObject(), "wrong type", 1).forEach { wrong ->
+                assertRejectedWithoutChanges(JSONObject(text).apply { parent(this).put(key, wrong) }.toString())
+            }
+            assertRejectedWithoutChanges(JSONObject(text).apply { parent(this).put(key, JSONArray().put(1)) }.toString())
+        }
+    }
+
+    @Test
+    fun infinityWeightIsRejectedWithoutChanges() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.firstWorkout().firstSet().put("weightKg", "Infinity")
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun nonFiniteNegativeAndWrongTypedSetNumbersAreRejectedWithoutChanges() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf<(JSONObject) -> JSONObject>({ it.firstWorkout().firstSet() }, { it.firstRoutine().firstSet() }).forEachIndexed { index, set ->
+            val keys = listOf("weightKg", "distanceKm") + if (index == 0) listOf("rpe") else emptyList()
+            keys.forEach { key ->
+                listOf("\"Infinity\"", "\"-Infinity\"", "\"NaN\"", "1e309", "NaN", "-0.5", "true", "\"2.5\"").forEach { raw ->
+                    val damaged = JSONObject(text).apply { set(this).put(key, "RAW_NUMBER") }
+                    assertRejectedWithoutChanges(damaged.toString().replace("\"RAW_NUMBER\"", raw))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun integerFieldsRejectFractionsNegativesOverflowAndWrongTypes() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        val intFields = listOf<Pair<(JSONObject) -> JSONObject, String>>(
+            { o: JSONObject -> o } to "schemaVersion",
+            { o: JSONObject -> o.getJSONObject("settings") } to "defaultRestSeconds",
+            { o: JSONObject -> o.firstWorkout().firstExercise() } to "restSeconds",
+            { o: JSONObject -> o.firstWorkout().firstSet() } to "reps",
+            { o: JSONObject -> o.firstWorkout().firstSet() } to "durationSec",
+            { o: JSONObject -> o.firstRoutine() } to "position",
+            { o: JSONObject -> o.firstRoutine().firstExercise() } to "restSeconds",
+            { o: JSONObject -> o.firstRoutine().firstSet() } to "reps",
+            { o: JSONObject -> o.firstRoutine().firstSet() } to "durationSec",
+        )
+        val longFields = listOf<Pair<(JSONObject) -> JSONObject, String>>(
+            { o: JSONObject -> o } to "exportedAt",
+            { o: JSONObject -> o.getJSONArray("customExercises").getJSONObject(0) } to "createdAt",
+            { o: JSONObject -> o.firstWorkout() } to "startedAt",
+            { o: JSONObject -> o.firstWorkout() } to "endedAt",
+            { o: JSONObject -> o.firstWorkout() } to "routineId",
+            { o: JSONObject -> o.firstWorkout().firstSet() } to "completedAt",
+            { o: JSONObject -> o.firstRoutine() } to "id",
+            { o: JSONObject -> o.firstRoutine() } to "createdAt",
+        )
+        (intFields + longFields).forEach { (parent, key) ->
+            val overflow = if ((parent to key) in intFields) "2147483648" else "9223372036854775808"
+            listOf("-1", "1.5", "1.0000000000000000001", overflow, "9223372036854775807.5", "\"1\"", "true").forEach { raw ->
+                val damaged = JSONObject(text).apply { parent(this).put(key, "RAW_NUMBER") }
+                assertRejectedWithoutChanges(damaged.toString().replace("\"RAW_NUMBER\"", raw))
+            }
+        }
+    }
+
+    @Test
+    fun hugeWorkoutRoutineIdsAreRejectedWithoutChanges() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf(Long.MAX_VALUE, Int.MAX_VALUE.toLong() + 1).forEach { id ->
+            val damaged = JSONObject(text).apply { firstWorkout().put("routineId", id) }
+            assertRejectedWithoutChanges(damaged.toString())
+        }
+    }
+
+    @Test
+    fun hugeRoutineIdsAreRejectedWithoutChanges() = runTest {
+        val text = BackupJson.write(backupOf(db))
+        listOf(Long.MAX_VALUE, Int.MAX_VALUE.toLong() + 1).forEach { id ->
+            val damaged = JSONObject(text).apply { firstRoutine().put("id", id) }
+            assertRejectedWithoutChanges(damaged.toString())
+        }
+    }
+
+    @Test
+    fun zeroRoutineIdIsRejectedWithoutChanges() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.firstRoutine().put("id", 0)
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun zeroWorkoutRoutineIdIsRejectedWithoutChanges() = runTest {
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.firstWorkout().put("routineId", 0)
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun danglingWorkoutRoutineAndMappingReferencesAreRejectedBeforeDeletes() = runTest {
+        forbidDeletes()
+        val text = BackupJson.write(backupOf(db))
+        listOf<(JSONObject) -> JSONObject>(
+            { it.firstWorkout().firstExercise() }, { it.firstRoutine().firstExercise() },
+            { it.getJSONArray("hevyMappings").getJSONObject(0) },
+        ).forEach { reference ->
+            // custom-1 already exists locally, but is absent from the incoming backup.
+            assertRejectedWithoutChanges(JSONObject(text).apply {
+                put("customExercises", JSONArray())
+                reference(this).put("exerciseId", "custom-1")
+            }.toString())
+            assertRejectedWithoutChanges(JSONObject(text).apply { reference(this).put("exerciseId", "missing") }.toString())
+        }
+    }
+
+    @Test
+    fun duplicateCustomExerciseIdsAreRejectedBeforeDeletes() = runTest {
+        forbidDeletes()
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.getJSONArray("customExercises").apply { put(getJSONObject(0)) }
+        assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    private fun forbidDeletes() {
+        listOf("workouts", "routines", "hevy_mappings", "exercises").forEach { table ->
+            db.openHelper.writableDatabase.execSQL(
+                "CREATE TRIGGER forbid_delete_$table BEFORE DELETE ON $table BEGIN SELECT RAISE(ABORT, 'Validation must precede deletes'); END",
+            )
+        }
+    }
+
+    @Test
+    fun exportedNumericBoundariesAndOmittedNullableFieldsRemainReadable() = runTest {
+        val original = backupOf(db)
+        val contents = original.copy(
+            exportedAt = Long.MAX_VALUE,
+            defaultRestSeconds = Int.MAX_VALUE,
+            workouts = original.workouts.map { w ->
+                w.copy(
+                    workout = w.workout.copy(routineId = Int.MAX_VALUE.toLong()),
+                    exercises = w.exercises.map { (exercise, sets) ->
+                        exercise to sets.map { it.copy(
+                            weightKg = Double.MAX_VALUE, distanceKm = Double.MIN_VALUE, rpe = 0.0,
+                            reps = Int.MAX_VALUE, durationSec = 0, completedAt = null,
+                        ) }
+                    },
+                )
+            },
+        )
+        val text = BackupJson.write(contents)
+        val fresh = newDatabase()
+        fresh.exerciseDao().insertAll(listOf(bench))
+        BackupRepository(fresh).restore(BackupJson.read(text))
+        val restored = BackupRepository(fresh, now = { Long.MAX_VALUE }).export(Int.MAX_VALUE)
+        assertEquals(text, BackupJson.write(restored))
+    }
+
+    @Test
+    fun currentExporterFixtureRestoresAndRoundTripsExactly() = runTest {
+        // Captured from BackupJson.write on main 2037924, before changing the reader.
+        val text = javaClass.getResource("/backup/current-export-v1.json")!!.readText()
+        val fresh = newDatabase()
+        fresh.exerciseDao().insertAll(listOf(bench))
+        BackupRepository(fresh).restore(BackupJson.read(text))
+        assertEquals(text, BackupJson.write(backupOf(fresh)))
+    }
+
+    @Test
+    fun historicalRoutineIdsAreKeptReservedAndRoundTripExactly() = runTest {
+        val original = backupOf(db)
+        listOf(emptyList(), original.routines, original.routines.map { it.copy(routine = it.routine.copy(id = 100L)) }).forEach { routines ->
+            val contents = original.copy(
+                routines = routines,
+                workouts = original.workouts.map { it.copy(workout = it.workout.copy(routineId = 42L)) },
+            )
+            val fresh = newDatabase()
+            fresh.exerciseDao().insertAll(listOf(bench))
+            val text = BackupJson.write(contents)
+            BackupRepository(fresh).restore(BackupJson.read(text))
+            assertEquals(text, BackupJson.write(backupOf(fresh)))
+            val id = RoutineRepository(fresh.routineDao(), fresh.exerciseDao()).save(0, "New routine", emptyList())
+            val highestReferencedId = maxOf(42L, routines.maxOfOrNull { it.routine.id } ?: 0L)
+            assertTrue("Referenced routine ids must be reserved; got $id", id > highestReferencedId)
+            assertEquals(42L, fresh.importDao().finishedWorkouts().single().routineId)
+        }
+    }
+
+    @Test
+    fun restoringNeverMovesAnExistingRoutineSequenceBackwards() = runTest {
+        val contents = backupOf(db).copy(routines = emptyList())
+        val dao = db.routineDao()
+        val routine = db.importDao().allRoutines().single()
+        dao.insertRoutine(routine.copy(id = 100L))
+        dao.deleteRoutine(100L)
+        BackupRepository(db).restore(contents)
+        assertTrue(RoutineRepository(dao, db.exerciseDao()).save(0, "New routine", emptyList()) > 100L)
+    }
 
     @Test
     fun aBackupRestoresEverythingIntoAFreshInstall() = runTest {

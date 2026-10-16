@@ -42,6 +42,15 @@ class BackupRepository(
      */
     suspend fun restore(contents: BackupContents) = db.withTransaction {
         if (db.workoutDao().getActive() != null) throw WorkoutInProgressException()
+        val customIds = contents.customExercises.map { it.id }.toSet()
+        if (customIds.size != contents.customExercises.size) throw BackupFormatException()
+        val builtInIds = dao.allExercises().filterNot { it.isCustom }.map { it.id }.toSet()
+        val availableIds = builtInIds + customIds
+        val referencedIds = contents.workouts.flatMap { w -> w.exercises.map { it.first.exerciseId } } +
+            contents.routines.flatMap { r -> r.exercises.map { it.first.exerciseId } } +
+            contents.hevyMappings.map { it.exerciseId }
+        if (referencedIds.any { it !in availableIds }) throw BackupFormatException()
+
         dao.deleteAllWorkouts()
         dao.deleteAllRoutines()
         dao.deleteAllMappings()
@@ -54,6 +63,16 @@ class BackupRepository(
             val id = dao.insertRoutine(routine.routine)
             routineDao.replaceContents(id, routine.exercises)
         }
+        // Deleted routines still have historical workout references. Reserve those ids too,
+        // keeping the links intact without letting a future routine inherit unrelated history.
+        val highestRoutineId = (contents.routines.map { it.routine.id } + contents.workouts.mapNotNull { it.workout.routineId })
+            .maxOrNull() ?: 0L
+        val sql = db.openHelper.writableDatabase
+        sql.execSQL("UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'routines'", arrayOf(highestRoutineId))
+        sql.execSQL(
+            "INSERT INTO sqlite_sequence(name, seq) SELECT 'routines', ? WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'routines')",
+            arrayOf(highestRoutineId),
+        )
         val workoutDao = db.workoutDao()
         contents.workouts.forEach { workoutDao.insertWorkoutWithContents(it.workout.copy(id = 0), it.exercises) }
         if (contents.hevyMappings.isNotEmpty()) dao.saveMappings(contents.hevyMappings)
