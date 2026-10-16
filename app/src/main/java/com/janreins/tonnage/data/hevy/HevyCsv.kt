@@ -26,6 +26,16 @@ data class HevyWorkout(
     val exercises: List<HevyExercise>,
 )
 
+/** The same normalised identity is used by parsing, preview and transactional insertion. */
+data class HevyWorkoutIdentity(val title: String, val startedAt: Long) {
+    companion object {
+        fun of(title: String, startedAt: Long) =
+            HevyWorkoutIdentity(title.trim().ifEmpty { "Workout" }, startedAt)
+    }
+}
+
+val HevyWorkout.identity: HevyWorkoutIdentity get() = HevyWorkoutIdentity.of(title, startedAt)
+
 class HevyFormatException(message: String) : Exception(message)
 
 /**
@@ -39,9 +49,9 @@ object HevyCsv {
     private const val MILE_TO_KM = 1.609344
 
     fun parse(text: String, timeZone: TimeZone = TimeZone.getDefault()): List<HevyWorkout> {
-        val rows = parseRows(text.removePrefix("\uFEFF")).filter { row -> row.any { it.isNotBlank() } }
+        val rows = detailedRows(text.removePrefix("\uFEFF")).filter { row -> row.cells.any { it.isNotBlank() } }
         if (rows.isEmpty()) throw HevyFormatException("The file is empty.")
-        val header = rows.first().map { it.trim().lowercase(Locale.US) }
+        val header = rows.first().cells.map { it.trim().lowercase(Locale.US) }
         fun column(vararg names: String): Int? = names.firstNotNullOfOrNull { name -> header.indexOf(name).takeIf { it >= 0 } }
 
         val title = column("title") ?: throw notHevy()
@@ -60,16 +70,29 @@ object HevyCsv {
         val rpe = column("rpe")
 
         // Hevy lists newest first; keep the file's grouping but return oldest first.
-        val workouts = LinkedHashMap<Pair<String, String>, MutableList<List<String>>>()
+        val workouts = LinkedHashMap<HevyWorkoutIdentity, MutableList<CsvRow>>()
+        val startTimes = mutableMapOf<String, Long>()
+        fun CsvRow.number(index: Int?, integer: Boolean = false): Double? {
+            val value = cell(index).replace(',', '.').toDoubleOrNull() ?: return null
+            if (!value.isFinite() || (integer && value > Int.MAX_VALUE)) {
+                throw HevyFormatException("Row $line has an invalid value in ${header[index!!]}.")
+            }
+            return value.takeIf { it >= 0.0 }
+        }
         rows.drop(1).forEach { row ->
-            fun cell(index: Int?) = index?.let { row.getOrNull(it) }?.trim().orEmpty()
-            workouts.getOrPut(cell(title) to cell(start)) { mutableListOf() } += row
+            // Validate even unused fallback columns and rows without an exercise name.
+            listOf(weightKg, weightLb, distanceKm, distanceMiles, rpe).forEach { row.number(it) }
+            listOf(reps, duration).forEach { row.number(it, integer = true) }
+            val date = row.cell(start)
+            val startedAt = startTimes.getOrPut(date) {
+                parseDate(date, timeZone)
+                    ?: throw HevyFormatException("Couldn't read the date \"$date\" for \"${row.cell(title)}\".")
+            }
+            workouts.getOrPut(HevyWorkoutIdentity.of(row.cell(title), startedAt)) { mutableListOf() } += row
         }
         return workouts.map { (key, workoutRows) ->
-            fun List<String>.cell(index: Int?) = index?.let { getOrNull(it) }?.trim().orEmpty()
             val first = workoutRows.first()
-            val startedAt = parseDate(key.second, timeZone)
-                ?: throw HevyFormatException("Couldn't read the date \"${key.second}\" for \"${key.first}\".")
+            val startedAt = key.startedAt
             val endedAt = parseDate(first.cell(end), timeZone)?.takeIf { it >= startedAt } ?: startedAt
 
             val exercises = mutableListOf<HevyExercise>()
@@ -90,16 +113,18 @@ object HevyCsv {
                 }
                 currentSets += HevySet(
                     type = setTypeOf(row.cell(setType)),
-                    weightKg = number(row.cell(weightKg)) ?: number(row.cell(weightLb))?.times(LB_TO_KG)?.let(::roundKg),
-                    reps = number(row.cell(reps))?.toInt(),
-                    distanceKm = number(row.cell(distanceKm)) ?: number(row.cell(distanceMiles))?.times(MILE_TO_KM),
-                    durationSec = number(row.cell(duration))?.toInt(),
-                    rpe = number(row.cell(rpe)),
+                    weightKg = row.number(weightKg) ?: row.number(weightLb)?.times(LB_TO_KG)?.let(::roundKg),
+                    reps = row.number(reps, integer = true)?.toInt(),
+                    distanceKm = row.number(distanceKm) ?: row.number(distanceMiles)?.times(MILE_TO_KM)?.also {
+                        if (!it.isFinite()) throw HevyFormatException("Row ${row.line} has an invalid value in ${header[distanceMiles!!]}.")
+                    },
+                    durationSec = row.number(duration, integer = true)?.toInt(),
+                    rpe = row.number(rpe),
                 )
             }
             flush()
             HevyWorkout(
-                title = key.first.ifEmpty { "Workout" },
+                title = key.title,
                 startedAt = startedAt,
                 endedAt = endedAt,
                 description = first.cell(description),
@@ -118,8 +143,6 @@ object HevyCsv {
         "failure" -> SetType.FAILURE
         else -> SetType.NORMAL
     }
-
-    private fun number(value: String): Double? = value.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.0 }
 
     /** Pounds converted to kg are kept to 0.01 kg so 135 lb doesn't become 61.23496995 kg. */
     private fun roundKg(kg: Double): Double = Math.round(kg * 100) / 100.0
@@ -141,30 +164,45 @@ object HevyCsv {
     }
 
     /** RFC 4180 CSV: quoted fields may contain commas, doubled quotes and line breaks. */
-    fun parseRows(text: String): List<List<String>> {
-        val rows = mutableListOf<List<String>>()
+    fun parseRows(text: String): List<List<String>> = detailedRows(text.removePrefix("\uFEFF")).map { it.cells }
+
+    private data class CsvRow(val line: Int, val cells: List<String>) {
+        fun cell(index: Int?): String = index?.let { cells.getOrNull(it) }?.trim().orEmpty()
+    }
+
+    private fun detailedRows(text: String): List<CsvRow> {
+        val rows = mutableListOf<CsvRow>()
         var row = mutableListOf<String>()
         val field = StringBuilder()
         var quoted = false
+        var line = 1
+        var rowLine = 1
+        var quoteLine = 1
         var i = 0
         while (i < text.length) {
             val c = text[i]
             when {
                 quoted && c == '"' && text.getOrNull(i + 1) == '"' -> { field.append('"'); i++ }
-                c == '"' -> quoted = !quoted
+                c == '"' -> {
+                    if (!quoted) quoteLine = line
+                    quoted = !quoted
+                }
                 !quoted && c == ',' -> { row += field.toString(); field.clear() }
                 !quoted && (c == '\n' || c == '\r') -> {
                     if (c == '\r' && text.getOrNull(i + 1) == '\n') i++
                     row += field.toString(); field.clear()
-                    rows += row; row = mutableListOf()
+                    rows += CsvRow(rowLine, row); row = mutableListOf()
+                    rowLine = line + 1
                 }
                 else -> field.append(c)
             }
+            if (c == '\n' || (c == '\r' && (!quoted || text.getOrNull(i + 1) != '\n'))) line++
             i++
         }
+        if (quoted) throw HevyFormatException("Row $quoteLine has an unclosed quote.")
         if (field.isNotEmpty() || row.isNotEmpty()) {
             row += field.toString()
-            rows += row
+            rows += CsvRow(rowLine, row)
         }
         return rows
     }

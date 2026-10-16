@@ -5,6 +5,8 @@ import com.janreins.tonnage.data.hevy.HevyFormatException
 import com.janreins.tonnage.data.model.SetType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.TimeZone
 
@@ -68,4 +70,77 @@ class HevyCsvTest {
     fun otherCsvFilesAreRejected() {
         HevyCsv.parse("date,amount\n2026-01-01,12.50")
     }
+    @Test
+    fun nonFiniteCellsAndOversizedIntegersNameThePhysicalRowAndColumn() {
+        val columns = listOf("weight_kg", "weight_lbs", "reps", "distance_km", "distance_miles", "duration_seconds", "rpe")
+        for (column in columns) {
+            val values = listOf("1e309", "Infinity", "NaN", "-Infinity") +
+                if (column in listOf("reps", "duration_seconds")) listOf("2147483648", "2147483647.5") else emptyList()
+            for (value in values) {
+                val csv = "title,start_time,exercise_title,$column\r\n\r\nA,2026-08-01 10:00,Plank,$value"
+                val error = assertThrows("$column=$value", HevyFormatException::class.java) { HevyCsv.parse(csv, utc) }
+                assertTrue(error.message!!, error.message!!.contains("Row 3"))
+                assertTrue(error.message!!, error.message!!.contains(column))
+            }
+        }
+    }
+
+    @Test
+    fun unusedFallbackNumericCellsAreStillValidated() {
+        val csv = "title,start_time,exercise_title,weight_kg,weight_lbs\nA,2026-08-01 10:00,Plank,20,Infinity"
+        val error = assertThrows(HevyFormatException::class.java) { HevyCsv.parse(csv, utc) }
+        assertTrue(error.message!!.contains("weight_lbs"))
+    }
+
+    @Test
+    fun convertedDistanceMustRemainFinite() {
+        val csv = "title,start_time,exercise_title,distance_miles\nA,2026-08-01 10:00,Running,1.7e308"
+        val error = assertThrows(HevyFormatException::class.java) { HevyCsv.parse(csv, utc) }
+        assertTrue(error.message!!.contains("Row 2"))
+        assertTrue(error.message!!.contains("distance_miles"))
+    }
+
+    @Test
+    fun blankNegativeShortAndLongRowsKeepTheirBehaviour() {
+        val csv = """
+            title,start_time,exercise_title,weight_kg,reps,distance_km,duration_seconds,rpe
+            A,2026-08-01 10:00,Plank,-20,-3,-2,-60,-8
+            A,2026-08-01 10:00,Plank
+            A,2026-08-01 10:00,Plank,,,,,,extra
+            A,2026-08-01 10:00,Plank,0,2147483647,0,2147483647,0
+        """.trimIndent()
+        val sets = HevyCsv.parse(csv, utc).single().exercises.single().sets
+        assertEquals(4, sets.size)
+        sets.take(3).forEach {
+            assertNull(it.weightKg); assertNull(it.reps); assertNull(it.distanceKm)
+            assertNull(it.durationSec); assertNull(it.rpe)
+        }
+        assertEquals(Int.MAX_VALUE, sets.last().reps)
+        assertEquals(Int.MAX_VALUE, sets.last().durationSec)
+    }
+
+    @Test
+    fun unclosedQuoteNamesTheLineWhereItOpened() {
+        val error = assertThrows(HevyFormatException::class.java) {
+            HevyCsv.parseRows("a,b\r\n\r\n\"valid\r\nmultiline\",x\r\nx,\"unclosed\nmore")
+        }
+        assertEquals("Row 5 has an unclosed quote.", error.message)
+    }
+
+    @Test
+    fun bomCrlfDoubledQuotesAndEmbeddedNewlinesRemainAccepted() {
+        val csv = "\uFEFFtitle,start_time,exercise_title,exercise_notes,duration_seconds\r\nA,2026-08-01 10:00,Plank,\"say \"\"hi\"\"\r\nthen hold\",60\r\n"
+        val exercise = HevyCsv.parse(csv, utc).single().exercises.single()
+        assertEquals("say \"hi\"\r\nthen hold", exercise.notes)
+        assertEquals(60, exercise.sets.single().durationSec)
+    }
+
+    @Test
+    fun identityUsesStoredTitleAndParsedStartRatherThanRawDateText() {
+        val csv = "title,start_time,exercise_title\n  ,2026-08-01 10:00,Plank\nWorkout,2026-08-01 10:00:00,Plank"
+        val workout = HevyCsv.parse(csv, utc).single()
+        assertEquals("Workout", workout.title)
+        assertEquals(2, workout.exercises.single().sets.size)
+    }
+
 }

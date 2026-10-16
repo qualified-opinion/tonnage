@@ -130,7 +130,7 @@ class MigrationTest {
             // Version 4 added remembered Hevy matches.
             db.importDao().saveMappings(listOf(HevyMapping("landmine press", "custom-1")))
             assertEquals(listOf("custom-1"), db.importDao().mappings().map { it.exerciseId })
-            assertEquals(emptyList<Long>(), db.importDao().hevyStartTimes())
+            assertEquals(emptyList<Long>(), db.importDao().hevyWorkouts().map { it.startedAt })
         } finally {
             db.close()
         }

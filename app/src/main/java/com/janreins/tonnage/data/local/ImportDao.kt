@@ -4,11 +4,13 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.janreins.tonnage.data.hevy.HevyWorkoutIdentity
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.Routine
 import com.janreins.tonnage.data.model.RoutineExercise
 import com.janreins.tonnage.data.model.RoutineSet
+import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
 import com.janreins.tonnage.data.model.WorkoutSet
@@ -23,9 +25,13 @@ interface ImportDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveMappings(mappings: List<HevyMapping>)
 
-    /** Start times of workouts already imported from Hevy, to skip them on a second import. */
-    @Query("SELECT startedAt FROM workouts WHERE source = 'hevy'")
-    suspend fun hevyStartTimes(): List<Long>
+    /** Titles and start times share the parser's workout identity. */
+    @Query("SELECT title, startedAt FROM workouts WHERE source = 'hevy'")
+    suspend fun hevyWorkouts(): List<HevyWorkoutIdentity>
+
+    /** Narrow, idempotent repair: never replace rows or update custom exercises. */
+    @Query("UPDATE exercises SET trackingType = :trackingType WHERE id IN (:ids) AND isCustom = 0 AND trackingType != :trackingType")
+    suspend fun repairBuiltInTracking(ids: List<String>, trackingType: TrackingType)
 
     @Query("SELECT * FROM exercises")
     suspend fun allExercises(): List<Exercise>

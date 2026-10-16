@@ -141,7 +141,7 @@ private fun Preview(state: ImportState.Ready, viewModel: DataViewModel, modifier
         Message(
             Icons.Filled.CheckCircle,
             "Nothing new to import",
-            "All ${plural(plan.workouts.size, "workout")} in this file are already in Tonnage.",
+            "All ${plural(plan.workouts.size, "workout")} in this file are already in Tonnage. Times read as ${plan.timeZoneId}.",
             "Close",
             viewModel::closeImport,
             modifier,
@@ -155,6 +155,7 @@ private fun Preview(state: ImportState.Ready, viewModel: DataViewModel, modifier
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(plural(plan.newWorkouts.size, "workout"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("${plural(plan.setCount, "set")} · ${plural(state.choices.size, "exercise")}")
+                Text("Times read as ${plan.timeZoneId}")
                 val first = plan.firstStartedAt
                 val last = plan.lastStartedAt
                 if (first != null && last != null) Text("${date(first)} to ${date(last)}")

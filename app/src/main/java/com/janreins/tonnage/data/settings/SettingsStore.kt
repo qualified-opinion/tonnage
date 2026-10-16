@@ -18,7 +18,7 @@ enum class ThemeMode(val label: String) {
     }
 }
 
-class SettingsStore private constructor(context: Context) {
+class SettingsStore internal constructor(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     private val _defaultRestSeconds = MutableStateFlow(prefs.getInt(KEY_REST, DEFAULT_REST_SECONDS))
@@ -37,10 +37,18 @@ class SettingsStore private constructor(context: Context) {
         _themeMode.value = mode
     }
 
+    /** Kept separate from the device zone so travelling cannot change imported identities. */
+    val hevyImportZone: String? get() = prefs.getString(KEY_HEVY_ZONE, null)
+
+    fun rememberHevyImportZone(zoneId: String) {
+        if (hevyImportZone == null) prefs.edit { putString(KEY_HEVY_ZONE, zoneId) }
+    }
+
     companion object {
         const val DEFAULT_REST_SECONDS = 90
         val REST_OPTIONS = listOf(0, 30, 45, 60, 90, 120, 150, 180, 240, 300)
         private const val KEY_REST = "default_rest_seconds"
+        private const val KEY_HEVY_ZONE = "hevy_import_zone"
         private const val KEY_THEME = "theme_mode"
 
         @Volatile
