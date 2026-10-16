@@ -63,8 +63,6 @@ fun BodyMap(
     modifier: Modifier = Modifier,
 ) {
     val body = MaterialTheme.colorScheme.surface
-    // The filled card's colour, so neighbouring muscles are separated by a thin gap.
-    val divider = MaterialTheme.colorScheme.surfaceContainerHighest
     val highlight = MaterialTheme.colorScheme.onSurface
     val most = setsByMuscle.filterKeys { it in BodyMapGeometry.muscles }.values.maxOrNull() ?: 0
     val colors = BodyMapGeometry.muscles.associateWith { bodyMapColor(BodyMapGeometry.shade(setsByMuscle[it] ?: 0, most)) }
@@ -101,7 +99,7 @@ fun BodyMap(
                 translate(left + x * factor, 0f)
                 scale(factor, factor, pivot = Offset.Zero)
             }) {
-                drawFigure(silhouette, muscles, body, divider, highlight, colors, selected)
+                drawFigure(silhouette, muscles, body, highlight, colors, selected)
             }
         }
     }
@@ -111,7 +109,6 @@ private fun DrawScope.drawFigure(
     silhouette: List<RegionPath>,
     muscles: List<RegionPath>,
     body: Color,
-    divider: Color,
     highlight: Color,
     colors: Map<String, Color>,
     selected: String?,
@@ -122,10 +119,15 @@ private fun DrawScope.drawFigure(
         topLeft = Offset(head.x - BodyMapGeometry.HEAD_RADIUS_X, head.y - BodyMapGeometry.HEAD_RADIUS_Y),
         size = Size(BodyMapGeometry.HEAD_RADIUS_X * 2, BodyMapGeometry.HEAD_RADIUS_Y * 2),
     )
-    silhouette.forEach { drawPath(it.path, body) }
+    silhouette.forEach {
+        drawPath(it.path, body)
+        // Covers the hairline seam where the two mirrored halves meet.
+        drawPath(it.path, body, style = Stroke(width = 0.5f))
+    }
     muscles.forEach { region ->
         drawPath(region.path, colors[region.muscle] ?: body)
-        drawPath(region.path, divider, style = Stroke(width = 0.8f, join = StrokeJoin.Round))
+        // Neighbouring muscles overlap slightly; a body-coloured outline separates them.
+        drawPath(region.path, body, style = Stroke(width = 0.9f, join = StrokeJoin.Round))
     }
     muscles.filter { it.muscle != null && it.muscle == selected }.forEach {
         drawPath(it.path, highlight, style = Stroke(width = 1.6f, join = StrokeJoin.Round))

@@ -20,11 +20,13 @@ class BodyMapTest {
         val back = BodyMapGeometry.back
         assertEquals("chest", BodyMapGeometry.muscleAt(front, 42f, 47f))
         assertEquals("chest", BodyMapGeometry.muscleAt(front, 58f, 47f))
-        assertEquals("quadriceps", BodyMapGeometry.muscleAt(front, 40f, 130f))
+        assertEquals("quadriceps", BodyMapGeometry.muscleAt(front, 40f, 125f))
+        assertEquals("triceps", BodyMapGeometry.muscleAt(back, 29f, 60f))
+        assertEquals("middle back", BodyMapGeometry.muscleAt(back, 44f, 48f))
         assertEquals("abdominals", BodyMapGeometry.muscleAt(front, 46f, 80f))
         assertEquals("lats", BodyMapGeometry.muscleAt(back, 37f, 65f))
         assertEquals("glutes", BodyMapGeometry.muscleAt(back, 58f, 112f))
-        assertEquals("hamstrings", BodyMapGeometry.muscleAt(back, 41f, 138f))
+        assertEquals("hamstrings", BodyMapGeometry.muscleAt(back, 36f, 135f))
         assertNull(BodyMapGeometry.muscleAt(front, 5f, 5f))
         assertNull(BodyMapGeometry.muscleAt(front, 50f, 13f))
     }
