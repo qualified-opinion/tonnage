@@ -18,12 +18,16 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 - **Edit or delete past workouts**: fix a typo in a weight, add a forgotten set or exercise, rename it, or delete it. Records are worked out from all your sets each time, so they correct themselves after an edit.
 - **Save as routine**: turn a logged workout into a routine from its ⋮ menu.
 - **Import from Hevy**: in Hevy, go to Settings > Export & Import Data > Export Workouts, then in Tonnage open More > Import from Hevy and pick the CSV. Exercise names are matched to the library automatically; only the ones it isn't sure about are shown for you to pick (or keep as your own exercise). A preview shows the workouts, sets and dates before anything is saved. Your choices are remembered, and importing a newer export later only adds the workouts that aren't there yet.
-- **Progress tab**: this week's workouts, working sets and volume, with a bar chart of workouts per week (tap a bar, or use the arrows, to look at an earlier week), how many weeks in a row you've trained, and a muscle heat map: front and back body figures where each muscle shades deeper green the more working sets it got that week (tap a muscle for its count, or show the full list).
+- **Progress tab**: this week's workouts, working sets and volume, with a bar chart of workouts per week (tap a bar, or use the arrows, to look at an earlier week), how many weeks in a row you've trained, and a muscle heat map: detailed front and back anatomy figures where each muscle shades deeper green the more working sets it got that week (tap a muscle to see its name and count, such as "Rear delts · Shoulders: 6 sets", or show the full list).
 - **Exercise charts**: open any exercise (from the Progress tab or the Exercises tab) to see a chart over time: estimated 1RM, heaviest weight or volume for weighted exercises; reps for bodyweight ones; distance or time for cardio. Tap a point for that day's number and best set, and pick 3 months, 1 year or all time.
 - **Milestones**: first workout, 5 / 10 / 25 / 50 / 100+ workouts, 10,000 kg to 10,000,000 kg lifted, 2- to 104-week streaks, and every 20 kg on bench press, squat, deadlift and overhead press from 40 kg. The Progress tab shows what's next with a progress bar, and what you've reached with the date. Like records, they're worked out from your history, so imported Hevy workouts count on the day you did them.
 - **Light and dark themes**: green accents on charcoal or near-white. More > Theme picks Light, Dark, or the same as your phone (the default).
 - **Backup and restore**: More > Back up to a file saves everything (workouts, routines, your own exercises, settings) as a JSON file you can keep in Drive or on a computer. Restore from a backup replaces what's in the app with the file's contents, for example on a new phone.
 - **Exercises**: 876 exercises bundled from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain), searchable by name (`db`, `bb`, `kb`, `ohp`, `rdl` shorthands work) and filterable by muscle, equipment or custom-only. Add your own with the + button.
+
+## Credits
+
+The body map artwork is by Ryan Graves, licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), and the exercise library comes from free-exercise-db (public domain). See [CREDITS.md](CREDITS.md) for details.
 
 ## Roadmap
 
