@@ -23,7 +23,7 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 |---|---|---|---|
 | 1. Backup and restore safety | `fix/backup-restore-safety` | T01 to T04, T13 | Merged (PR #13, `fddc9b5`). Released in 1.4.0 and phone-tested 2026-10-17: backup and restore of real data work, and restore is refused during a workout. |
 | 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | Merged (PR #14, `7721bc7`). Released in 1.4.0 and phone-tested 2026-10-17: re-import adds nothing and a renamed workout is skipped. Plank time entry needed a colon the number pad lacks (N03, fixed). |
-| 3. Logging data safety | `fix/logging-data-safety` | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | Not started. Pack: `handoffs/batch3-logging-data-safety.md` |
+| 3. Logging data safety | `claude/plan-and-handover-n0yv7w` (this session can only push that branch) | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | In review (PR #18). Needs a phone check: keyboard and focus, tapping previous while typing, finish and discard dialogs, screen staying on. |
 | 4. Backup and schema safety | `fix/backup-schema-safety` | restore message, duplicate ids, export size, last-backed-up line, T16, Dependabot | Not started. Pack: `handoffs/batch4-backup-schema-safety.md` |
 | 5. Stats and speed | `fix/stats-and-speed` | PR flow scope, T18, T14, T12, blank-history rule, redraw cost | Not started. Pack: `handoffs/batch5-stats-and-speed.md` |
 | 6. Timer and service lifecycle | `fix/timer-service-lifecycle` | T09, T10, notifications-off notice, accessibility | Not started. Pack: `handoffs/batch6-timer-service-lifecycle.md` |
@@ -68,7 +68,7 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 
 ## Decisions the owner still owes
 Each default below is what the pack will do unless the owner says otherwise.
-1. **Blank-set tick (batch 3):** ticking an empty set fills it from the "previous" value when there is one, and is ignored when there is none. This is how Hevy behaves.
+1. **Blank-set tick (batch 3):** ticking an empty set fills it from the "previous" value when there is one, and is ignored when there is none. This is how Hevy behaves. Built this way in batch 3; say so if you want it different.
 2. **Estimated 1RM cap (batch 5, optional):** ignore sets above 12 reps for the Epley estimate. Not in the pack by default, because it changes the PRs shown for old workouts. Say "include the 1RM cap" to add it.
 3. **Phone-to-phone transfer (batch 4):** `data_extraction_rules.xml` currently excludes everything from device transfer. Leave as is unless the owner wants it, since it is a privacy choice.
 4. **Phase 7 extras (after batch 6):** the original plan (`workout-app/plan.md`) listed body weight, plate calculator, progression hints and Health Connect as phase 7; the review later suggested cutting the plate calculator. Default: none is built until the owner asks, then one PR each in the order below.

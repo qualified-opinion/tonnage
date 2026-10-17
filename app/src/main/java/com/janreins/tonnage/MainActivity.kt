@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -327,11 +328,25 @@ private fun MainTabs(tab: MainTab, onTabChange: (MainTab) -> Unit, content: @Com
 private fun ResumeDialog(workout: Workout, onResume: () -> Unit, onDiscard: () -> Unit) {
     val started = SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(workout.startedAt))
     val elapsed = Format.duration(System.currentTimeMillis() - workout.startedAt)
+    var confirmDiscard by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = {},
         title = { Text("Unfinished workout") },
         text = { Text("\"${workout.title}\" was started $started ($elapsed ago) and wasn't finished. Pick up where you left off?") },
         confirmButton = { TextButton(onClick = onResume) { Text("Resume") } },
-        dismissButton = { TextButton(onClick = onDiscard) { Text("Discard") } },
+        dismissButton = { TextButton(onClick = { confirmDiscard = true }) { Text("Discard") } },
     )
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text("Discard \"${workout.title}\"?") },
+            text = { Text("Everything logged in this workout will be deleted. This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = { confirmDiscard = false; onDiscard() }) {
+                    Text("Discard", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep it") } },
+        )
+    }
 }

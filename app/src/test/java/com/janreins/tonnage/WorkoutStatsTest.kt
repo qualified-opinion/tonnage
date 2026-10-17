@@ -56,6 +56,8 @@ class WorkoutStatsTest {
         assertEquals(80.0 * 8 + 70.0 * 10, summary.volumeKg, 0.0)
         assertEquals(3, summary.completedSets)
         assertEquals(1, summary.incompleteSets)
+        // The unticked 80 × 8 has numbers in it, so finishing offers to tick it.
+        assertEquals(1, summary.filledIncompleteSets)
         assertEquals(1, summary.exerciseCount)
         assertEquals(3_600_000, summary.durationMs)
     }

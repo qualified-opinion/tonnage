@@ -26,19 +26,25 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.janreins.tonnage.domain.SetInput
 
-enum class CellKind(val keyboardType: KeyboardType, val allowed: (Char) -> Boolean) {
-    DECIMAL(KeyboardType.Decimal, { it.isDigit() || it == '.' || it == ',' }),
-    INTEGER(KeyboardType.Number, { it.isDigit() }),
-    DURATION(KeyboardType.Number, { it.isDigit() || it == ':' }),
+enum class CellKind(val keyboardType: KeyboardType, val input: SetInput.Kind) {
+    WEIGHT(KeyboardType.Decimal, SetInput.Kind.WEIGHT),
+    REPS(KeyboardType.Number, SetInput.Kind.REPS),
+    DISTANCE(KeyboardType.Decimal, SetInput.Kind.DISTANCE),
+    DURATION(KeyboardType.Number, SetInput.Kind.DURATION),
 }
 
 /**
  * A compact number box for a set. It keeps its own text while you type (so "62." isn't
  * reformatted mid-entry) and reports every change; [key] resets it for a different set.
  * When it isn't focused it follows [initial], so values filled in from elsewhere show up, and
- * leaving it shows the saved value again (a time typed as "130" then reads "1:30").
+ * leaving it shows the saved value again (a time typed as "130" then reads "1:30"). A new
+ * [fill] (tapping a "previous" value) replaces the text even while the box is focused.
  */
+/** Text pushed into a cell from outside; [id] changes on every push so the same text re-applies. */
+data class CellFill(val id: Int, val text: String)
+
 @Composable
 fun SetNumberCell(
     key: Any,
@@ -47,6 +53,7 @@ fun SetNumberCell(
     kind: CellKind,
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
+    fill: CellFill? = null,
 ) {
     var text by remember(key) { mutableStateOf(initial) }
     var focused by remember { mutableStateOf(false) }
@@ -54,13 +61,19 @@ fun SetNumberCell(
     LaunchedEffect(initial) {
         if (!focused) text = initial
     }
+    LaunchedEffect(fill) {
+        fill?.let { text = it.text }
+    }
     val colors = MaterialTheme.colorScheme
     BasicTextField(
         value = text,
         onValueChange = { input ->
-            val filtered = input.filter(kind.allowed).take(8)
-            text = filtered
-            onChange(filtered)
+            SetInput.accept(kind.input, text, input)?.let { accepted ->
+                if (accepted != text) {
+                    text = accepted
+                    onChange(accepted)
+                }
+            }
         },
         modifier = modifier.height(40.dp).onFocusChanged {
             if (focused && !it.isFocused) text = saved

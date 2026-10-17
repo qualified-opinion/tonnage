@@ -124,6 +124,9 @@ abstract class WorkoutDao {
     @Query("SELECT * FROM workout_sets WHERE workoutExerciseId = :workoutExerciseId ORDER BY position")
     abstract suspend fun getSets(workoutExerciseId: Long): List<WorkoutSet>
 
+    @Query("SELECT * FROM workout_sets WHERE id = :id")
+    abstract suspend fun getSet(id: Long): WorkoutSet?
+
     @Insert
     abstract suspend fun insertSet(set: WorkoutSet): Long
 
@@ -188,10 +191,11 @@ abstract class WorkoutDao {
         deleteEmptyExercises(workoutId)
     }
 
-    /** Keeps only completed sets, drops exercises left empty, and moves the workout to history. */
+    /** Keeps only completed sets with something in them, drops exercises left empty, and moves the workout to history. */
     @Transaction
     open suspend fun finishWorkout(workoutId: Long, endedAt: Long) {
         deleteIncompleteSets(workoutId)
+        deleteBlankSets(workoutId)
         deleteEmptyExercises(workoutId)
         setEndedAt(workoutId, endedAt)
     }

@@ -4,12 +4,14 @@ import com.janreins.tonnage.data.local.ExerciseDao
 import com.janreins.tonnage.data.local.WorkoutDao
 import com.janreins.tonnage.data.model.RoutineContents
 import com.janreins.tonnage.data.model.SetType
+import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
 import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.model.WorkoutSummary
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.SetInput
 import com.janreins.tonnage.domain.WorkoutStats
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -178,6 +180,35 @@ class WorkoutRepository(
 
     suspend fun setCompleted(setId: Long, completed: Boolean) = write {
         workoutDao.updateCompleted(setId, completed, if (completed) now() else null)
+    }
+
+    /**
+     * Ticks a set off, as Hevy does: a blank set is first filled with [previous] (last time's set
+     * at the same position), and stays unticked when there is nothing to fill it with. Returns
+     * whether the set is now ticked.
+     */
+    suspend fun complete(setId: Long, trackingType: TrackingType, previous: WorkoutSet?): Boolean = write {
+        val set = workoutDao.getSet(setId) ?: return@write false
+        if (!SetInput.isFilled(set, trackingType)) {
+            if (previous == null || !SetInput.isFilled(previous, trackingType)) return@write false
+            workoutDao.updateValues(setId, previous.weightKg, previous.reps, previous.distanceKm, previous.durationSec)
+        }
+        workoutDao.updateCompleted(setId, true, now())
+        true
+    }
+
+    /** Ticks every set that has numbers in it but isn't ticked yet. Returns how many were ticked. */
+    suspend fun completeFilled(blocks: List<ExerciseBlock>): Int = write {
+        var ticked = 0
+        blocks.forEach { block ->
+            workoutDao.getSets(block.workoutExercise.id)
+                .filter { !it.completed && SetInput.isFilled(it, block.trackingType) }
+                .forEach {
+                    workoutDao.updateCompleted(it.id, true, now())
+                    ticked++
+                }
+        }
+        ticked
     }
 
     suspend fun recordsFor(active: ActiveWorkout): List<PersonalRecord> {

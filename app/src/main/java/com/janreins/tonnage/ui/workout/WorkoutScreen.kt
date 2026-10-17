@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -55,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -103,6 +105,7 @@ fun WorkoutTab(
         FinishDialog(
             preview = finishPreview,
             onSave = { viewModel.finish(onSaved) },
+            onCompleteFilledAndSave = { viewModel.completeFilledAndFinish(onSaved) },
             onDiscard = viewModel::discard,
             onDismiss = viewModel::cancelFinish,
         )
@@ -269,6 +272,12 @@ private fun ActiveWorkoutScreen(
     }
     var renaming by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
+    // Keep the screen on while logging, so it doesn't lock between sets.
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
     val summary = WorkoutStats.summarize(active.blocks, active.workout.startedAt, now)
 
     val actions = run {
@@ -419,15 +428,58 @@ private fun RenameDialog(current: String, onDismiss: () -> Unit, onSave: (String
 }
 
 @Composable
-private fun FinishDialog(preview: FinishPreview, onSave: () -> Unit, onDiscard: () -> Unit, onDismiss: () -> Unit) {
+private fun FinishDialog(
+    preview: FinishPreview,
+    onSave: () -> Unit,
+    onCompleteFilledAndSave: () -> Unit,
+    onDiscard: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val summary = preview.summary
+    val filled = summary.filledIncompleteSets
+    val filledSets = if (filled == 1) "1 filled set" else "$filled filled sets"
+    var confirmDiscard by remember { mutableStateOf(false) }
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Discard this workout?") },
+            text = { Text("$filledSets will be deleted. This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = onDiscard) { Text("Discard", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Keep going") } },
+        )
+        return
+    }
     if (summary.completedSets == 0) {
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("Nothing logged yet") },
-            text = { Text("Tick off at least one set to save this workout, or discard it.") },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("Keep going") } },
-            dismissButton = { TextButton(onClick = onDiscard) { Text("Discard workout") } },
+            title = { Text(if (filled > 0) "Nothing ticked yet" else "Nothing logged yet") },
+            text = {
+                Text(
+                    if (filled > 0) {
+                        "You have $filledSets that aren't ticked. Tick them and save, or keep going."
+                    } else {
+                        "Tick off at least one set to save this workout, or discard it."
+                    },
+                )
+            },
+            confirmButton = {
+                if (filled > 0) {
+                    Button(onClick = onCompleteFilledAndSave) { Text("Tick filled sets and save") }
+                } else {
+                    TextButton(onClick = onDismiss) { Text("Keep going") }
+                }
+            },
+            dismissButton = {
+                Row {
+                    // Discarding filled sets always needs a second, explicit confirmation.
+                    TextButton(onClick = { if (filled > 0) confirmDiscard = true else onDiscard() }) {
+                        Text("Discard workout", color = MaterialTheme.colorScheme.error)
+                    }
+                    if (filled > 0) TextButton(onClick = onDismiss) { Text("Keep going") }
+                }
+            },
         )
         return
     }
@@ -439,8 +491,14 @@ private fun FinishDialog(preview: FinishPreview, onSave: () -> Unit, onDiscard: 
                 Text("Duration: ${Format.duration(summary.durationMs)}")
                 Text("Exercises: ${summary.exerciseCount} · Sets: ${summary.completedSets}")
                 Text("Volume: ${Format.volume(summary.volumeKg)}")
-                if (summary.incompleteSets > 0) {
-                    val sets = if (summary.incompleteSets == 1) "1 unticked set" else "${summary.incompleteSets} unticked sets"
+                if (filled > 0) {
+                    val verb = if (filled == 1) "isn't" else "aren't"
+                    Text("$filledSets $verb ticked and won't be saved unless you tick them.", color = MaterialTheme.colorScheme.error)
+                    OutlinedButton(onClick = onCompleteFilledAndSave) { Text("Tick them and save") }
+                }
+                val blank = summary.incompleteSets - filled
+                if (blank > 0) {
+                    val sets = if (blank == 1) "1 empty set" else "$blank empty sets"
                     Text("$sets will be removed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (preview.records.isNotEmpty()) {

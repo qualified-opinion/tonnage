@@ -40,6 +40,8 @@ data class SessionSummary(
     val completedSets: Int,
     val incompleteSets: Int,
     val volumeKg: Double,
+    /** Unticked sets with numbers in them, which finishing would otherwise drop. */
+    val filledIncompleteSets: Int = 0,
 )
 
 object WorkoutStats {
@@ -67,6 +69,9 @@ object WorkoutStats {
             completedSets = sets.count { it.completed },
             incompleteSets = sets.count { !it.completed },
             volumeKg = sets.sumOf { setVolume(it) },
+            filledIncompleteSets = blocks.sumOf { block ->
+                block.sets.count { !it.completed && SetInput.isFilled(it, block.trackingType) }
+            },
         )
     }
 
