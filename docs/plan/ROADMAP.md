@@ -2,10 +2,20 @@
 
 This file is the single place to learn what is done, what is next, and how work on Tonnage is run. Any agent or person can take over from here, including the owner working alone with Claude Code or Codex, one PR at a time. Keep it current: every batch PR updates the status table below.
 
-**Last updated:** 2026-10-17, after batch 2 merged (`main` at `7721bc7`). A fresh review of `main` produced batches 3 to 6 below. None of them is started.
+**Last updated:** 2026-10-17, after batch 2 merged and the handover review (`main` at `1816b12`). A fresh review of `main` produced batches 3 to 6 below; the handover review (`reviews/claude-review-3.md`) added N12 to N15. None of the batches is started.
 
 ## What Tonnage is
-A private, offline strength logger for Android (a Hevy replacement with no social features), built with Kotlin, Compose, Material 3 and Room. Weights are stored in kg, and the owner uses kg. There is no `INTERNET` permission, no analytics and no cloud sync, and none of that changes. Architecture and conventions are in `AGENTS.md`. Read it first.
+A private, offline strength logger for Android (a Hevy replacement with no social features), built with Kotlin, Compose, Material 3 and Room. Weights are stored in kg, and the owner uses kg. There is no `INTERNET` permission, no analytics and no cloud sync, and none of that changes. Architecture, the database, build and release are in `HANDOVER.md`; the rules are in `AGENTS.md`. Read both first.
+
+## Shipped
+
+| Release | Date | What it added |
+|---|---|---|
+| 1.0.0 | 2026-10-15 | Phases 0 to 6: exercise library, workout logging with the lock-screen rest timer, routines and previous values, history with edit and records, Hevy import and backup, Progress tab with charts, weekly stats and milestones, green theme with light/dark choice |
+| 1.1.0 | 2026-10-16 | Muscle heat map on the Progress tab |
+| 1.2.0 | 2026-10-16 | Fuller body map with 40+ named muscles |
+| 1.3.0 | 2026-10-16 | Detailed anatomy art (Ryan Graves, CC BY 4.0) |
+| not released | | Batch 1 (backup and restore safety, PR #13) and batch 2 (Hevy import fidelity, PR #14). Publish as 1.4.0 from `main` after the phone checks under "Open verification" (N15). |
 
 ## Where the work stands
 
@@ -50,6 +60,10 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 | N09 | Exercise picker loses its selection on rotation | later |
 | N10 | Rest timer ends silently if notifications are denied | 6 |
 | N11 | Set inputs have no screen-reader labels and touch targets are under 48 dp | 6 |
+| N12 | Library updates never reach installed phones (seed only runs on an empty library), so a future alias or backup can point at an exercise the phone lacks | 4 |
+| N13 | The release workflow publishes from whatever branch is picked | 4 |
+| N14 | Theme and the saved Hevy import zone are not in backups, so a re-import after restoring on a phone in another zone can duplicate | later (needs a backup format bump) |
+| N15 | Batches 1 and 2 are merged but not released | owner, after phone checks |
 | TG | Test gaps: nothing tests `WorkoutViewModel`, `WorkoutService`, set-input filtering or restore failure paths | each batch adds its own |
 
 ## Decisions the owner still owes
@@ -57,10 +71,17 @@ Each default below is what the pack will do unless the owner says otherwise.
 1. **Blank-set tick (batch 3):** ticking an empty set fills it from the "previous" value when there is one, and is ignored when there is none. This is how Hevy behaves.
 2. **Estimated 1RM cap (batch 5, optional):** ignore sets above 12 reps for the Epley estimate. Not in the pack by default, because it changes the PRs shown for old workouts. Say "include the 1RM cap" to add it.
 3. **Phone-to-phone transfer (batch 4):** `data_extraction_rules.xml` currently excludes everything from device transfer. Leave as is unless the owner wants it, since it is a privacy choice.
+4. **Phase 7 extras (after batch 6):** the original plan (`workout-app/plan.md`) listed body weight, plate calculator, progression hints and Health Connect as phase 7; the review later suggested cutting the plate calculator. Default: none is built until the owner asks, then one PR each in the order below.
+
+## Phase 7 extras, not scheduled
+The last phase of the original plan. Do these only after batches 3 to 6 and only when the owner asks, one PR each.
+1. **Progression hints.** At the point of logging, for example "Last: 60 x 8,8,7, try 62.5 x 8", using a simple double-progression rule (all sets hit the top of the rep range, add the smallest weight step), tap to fill. Pure logic in `domain/`, fed by `WorkoutRepository.previousSets`; no schema change. Medium effort. The review ranked it the most useful idea.
+2. **Body weight log.** A new `body_weights` table (date, kg), a small entry screen under More, and a line chart on Progress using `ui/components/Charts.kt`. Needs Room version 5 with `MIGRATION_4_5` and a `MigrationTest` case, plus a backup `SCHEMA_VERSION` bump that still reads version 1. Small to medium.
+3. **Plate calculator.** A dialog from a weight cell that shows the plates per side for a bar weight (default 20 kg) and the owner's plate set. Display-only, no schema change; the plate set lives in `SettingsStore`. Small. The review rated it low value, so confirm with the owner first.
+4. **Health Connect export.** Write finished workouts (type, start, end, and optionally calories) to Health Connect, Android's on-phone health store. It is not a network call, so it fits the offline rule, but it adds a dependency, Health Connect permissions and a privacy choice. Export only, off by default, behind a Settings switch. Medium. Ask the owner before starting.
 
 ## Later ideas, not scheduled
 Do these only after batches 3 to 6 and only when the owner asks. They came from the review, ranked by value.
-- **Progression hint** at the point of logging, for example "Last: 60 x 8,8,7, try 62.5 x 8", using a simple double-progression rule, tap to fill. Medium effort.
 - **Per-exercise history table** of recent sessions with a "stalled for X sessions" marker. Small, the data already exists.
 - **Routine editor draft survives process death** (N06) and **picker selection survives rotation** (N09). Low value, small.
 - **Remove the Compose keep rule** from `proguard-rules.pro`, only after the release build has run on a phone.
@@ -68,7 +89,7 @@ Do these only after batches 3 to 6 and only when the owner asks. They came from 
 ## Cut for now
 The review recommends not building these. Revisit only if the owner asks.
 - **kg/lb setting.** The owner uses kg.
-- Weight plus/minus buttons, a plate calculator, an RPE or notes UI on every set, supersets, more themes or milestones, more body-map work.
+- Weight plus/minus buttons (the plate calculator moved to phase 7 above), an RPE or notes UI on every set, supersets, more themes or milestones, more body-map work.
 - Optional app lock. Add it only if the owner wants it for this app.
 - Cloud sync, social features and any network access. They go against the offline and private brief.
 
@@ -78,13 +99,13 @@ The review recommends not building these. Revisit only if the owner asks.
 3. **Build:** one agent (Codex or Claude Code) builds on the named feature branch, runs `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, and opens a PR. Every fix needs a test that fails on current `main`.
 4. **Review:** a different engine than the builder checks the diff against the pack's acceptance criteria and says "approve" or "changes needed". After a fix, only the new commit is re-checked. One review round is the default.
 5. **Merge:** squash-merge, pinned to the exact commit that was approved, only when it is approved, CI is green and the owner has OK'd that PR. Anything pushed after approval needs another check.
-6. **Never:** push to `main`, force-push, create tags or releases, or add network access. The owner publishes releases himself.
+6. **Never:** push to `main`, force-push, create tags or releases, or add network access. Releases are published by the owner, or by Claude only when the owner asks, with the Run workflow button (see `HANDOVER.md`).
 7. **Docs:** every batch PR updates the status table here, and `AGENTS.md` when a convention changes.
 
 The coordination room is the "Coding" group chat in Grok Bot (Jan, Atlas, Kiln, Nightshift).
 
 ### When the owner works alone with Claude Code or Codex
-Open the repo (Claude Code reads `CLAUDE.md`, which points to `AGENTS.md`; Codex reads `AGENTS.md`). A good first message: "Read `docs/plan/ROADMAP.md` and `AGENTS.md`, then do the next not-started batch from its pack in `docs/plan/handoffs/`. Make the feature branch named in the pack, keep to its scope, add the tests it requires, run `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, update the status table, and open a PR. Do not merge." For review, start a fresh session (or the other tool) and say: "Review this PR against the acceptance criteria in the pack. Report blockers, should-fix and nits with file and line. Do not edit." Build with one engine and review with the other.
+Open the repo (Claude Code reads `CLAUDE.md`, which points to `AGENTS.md`; Codex reads `AGENTS.md`). A good first message: "Read `HANDOVER.md`, `docs/plan/ROADMAP.md` and `AGENTS.md`, then do the next not-started batch from its pack in `docs/plan/handoffs/`. Make the feature branch named in the pack, keep to its scope, add the tests it requires, run `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, update the status table, and open a PR. Do not merge." For review, start a fresh session (or the other tool) and say: "Review this PR against the acceptance criteria in the pack. Report blockers, should-fix and nits with file and line. Do not edit." Build with one engine and review with the other.
 
 ## Open verification
 Nothing below has been checked on a real phone:
@@ -94,7 +115,7 @@ Nothing below has been checked on a real phone:
 - Rest timer behaviour under Doze and OEM battery savers (batch 6).
 
 ## Facts a new owner needs
-- The repo is public. Release signing keys come from CI secrets only. Release builds fall back to the debug key if no keystore is configured.
+- The repo is public. Release signing keys come from CI secrets only (names in `HANDOVER.md`). A published release refuses to build without them; other release builds fall back to the debug key.
 - Room is at version 4 with migrations 1 to 2, 2 to 3 and 3 to 4. Entity changes need a version bump, a non-destructive migration and a `MigrationTest` case. The schema export is configured (`room.schemaLocation`) but no JSON is committed yet (batch 4).
 - `workouts.routineId` is deliberately not a foreign key, so deleting a routine keeps history.
 - Backups use `format` and `schemaVersion`. Batch 1 made the reader strict. The exporter has never changed since it was added (commit `c735e04`), so every released backup matches the strict reader.

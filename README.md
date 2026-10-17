@@ -22,7 +22,7 @@ Built with Kotlin, Jetpack Compose, Material 3 and Room. Everything is stored on
 - **Exercise charts**: open any exercise (from the Progress tab or the Exercises tab) to see a chart over time: estimated 1RM, heaviest weight or volume for weighted exercises; reps for bodyweight ones; distance or time for cardio. Tap a point for that day's number and best set, and pick 3 months, 1 year or all time.
 - **Milestones**: first workout, 5 / 10 / 25 / 50 / 100+ workouts, 10,000 kg to 10,000,000 kg lifted, 2- to 104-week streaks, and every 20 kg on bench press, squat, deadlift and overhead press from 40 kg. The Progress tab shows what's next with a progress bar, and what you've reached with the date. Like records, they're worked out from your history, so imported Hevy workouts count on the day you did them.
 - **Light and dark themes**: green accents on charcoal or near-white. More > Theme picks Light, Dark, or the same as your phone (the default).
-- **Backup and restore**: More > Back up to a file saves everything (workouts, routines, your own exercises, settings) as a JSON file you can keep in Drive or on a computer. Restore from a backup replaces what's in the app with the file's contents, for example on a new phone.
+- **Backup and restore**: More > Back up to a file saves everything (workouts, routines, your own exercises, your default rest time) as a JSON file you can keep in Drive or on a computer. Restore from a backup replaces what's in the app with the file's contents, for example on a new phone.
 - **Exercises**: 876 exercises bundled from [free-exercise-db](https://github.com/yuhonas/free-exercise-db) (public domain), searchable by name (`db`, `bb`, `kb`, `ohp`, `rdl` shorthands work) and filterable by muscle, equipment or custom-only. Add your own with the + button.
 
 ## Credits
@@ -38,8 +38,8 @@ The body map artwork is by Ryan Graves, licensed [CC BY 4.0](https://creativecom
 | 3 | Routines and "previous" values while logging |
 | 4 | Workout detail, edit/delete, record badges, save as routine |
 | 5 | Hevy CSV import and JSON backup/restore |
-| 6 (this) | Progress charts, weekly stats, milestones |
-| 7 | Body weight, plate calculator, progression hints, Health Connect |
+| 6 | Progress charts, weekly stats, milestones, muscle heat map (released as 1.0.0 to 1.3.0) |
+| 7 | Body weight, plate calculator, progression hints, Health Connect (not started; see [docs/plan/ROADMAP.md](docs/plan/ROADMAP.md)) |
 
 ## How to build & install
 

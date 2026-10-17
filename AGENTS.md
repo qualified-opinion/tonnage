@@ -31,6 +31,7 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Room migrations**: `MigrationTest` builds the previous schema by hand and opens it with the current app; add a case there for every new migration.
 - Navigation is a simple tab enum (`ui/state/MainTab`) plus screen state in `MainActivity`, as in Piso.
 - Plan and acceptance notes for later phases live in the project files (`workout-app/plan.md`, `workout-app/implementation-notes.md`).
+- How the app is built, the database, build and release: `HANDOVER.md` at the root.
 - Status, roadmap and handoff packs live in `docs/plan/ROADMAP.md`. Read it before starting work and update it in every batch PR.
 - **Hevy workout identity** is normalised `(title, startedAt)` (blank title becomes "Workout"), shared by `HevyCsv`, `ImportRepository.prepare` and the `import()` transaction. Exact matches against stored Hevy workouts are reserved first; a stored workout left over at the same start then absorbs one leftover incoming workout, so a workout renamed in History is skipped on re-import. Imported times use the zone saved on the first successful import. Hevy files are limited to 25 MiB and backups to 50 MiB.
 - **Strict backup reader** (`BackupJson.read`, batch 1): it rejects non-finite, negative, non-integral and overflowing numbers and routine ids outside 1..`Int.MAX_VALUE`, and `restore()` validates every reference before deleting anything. It is as strict as `BackupJson.write` has always been, so every older backup still restores.
