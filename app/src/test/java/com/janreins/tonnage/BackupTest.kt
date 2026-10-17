@@ -257,7 +257,7 @@ class BackupTest {
         forbidDeletes()
         val damaged = JSONObject(BackupJson.write(backupOf(db)))
         damaged.getJSONArray("customExercises").apply { put(getJSONObject(0)) }
-        assertRejectedWithoutChanges(damaged.toString())
+        assertRejectedWithoutChanges(damaged.toString(), "The file has two custom exercises with the same id. Nothing was changed.")
     }
 
     @Test
