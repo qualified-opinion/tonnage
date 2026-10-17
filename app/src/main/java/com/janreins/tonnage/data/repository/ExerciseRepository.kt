@@ -24,11 +24,11 @@ class ExerciseRepository(database: AppDatabase) {
      */
     suspend fun seedLibrary(context: Context) = withContext(Dispatchers.IO) {
         val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
-        seedLibrary(ExerciseSeed.parse(json))
+        addMissingBuiltIns(ExerciseSeed.parse(json))
     }
 
     /** Inserts the built-ins in [library] whose id is missing; [ExerciseDao.insertAll] ignores the rest. */
-    internal suspend fun seedLibrary(library: List<Exercise>) = withContext(Dispatchers.IO) {
+    internal suspend fun addMissingBuiltIns(library: List<Exercise>) = withContext(Dispatchers.IO) {
         dao.insertAll(library.filterNot { it.isCustom })
         // Safe on every start: after the first repair this updates no rows.
         ExerciseSeed.trackingOverrides.entries.groupBy({ it.value }, { it.key }).forEach { (type, ids) ->

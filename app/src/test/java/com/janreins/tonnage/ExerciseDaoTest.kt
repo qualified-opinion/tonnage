@@ -51,7 +51,7 @@ class ExerciseDaoTest {
     fun seedingAddsNewLibraryExercisesWithoutTouchingExistingRows() = runTest {
         val library = ExerciseSeed.parse(context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() })
         // An install from an older app with a shorter library, one built-in edited and a custom exercise.
-        repository.seedLibrary(library.take(100))
+        repository.addMissingBuiltIns(library.take(100))
         db.openHelper.writableDatabase.execSQL("UPDATE exercises SET name = 'Edited' WHERE id = '${library[0].id}'")
         val custom = repository.addCustom("Landmine Press", "shoulders", "other", TrackingType.WEIGHT_REPS)
         assertEquals(101, repository.observeAll().first().size)
