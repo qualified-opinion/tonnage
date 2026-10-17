@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.janreins.tonnage.data.local.AppDatabase
+import com.janreins.tonnage.data.local.ExerciseSeed
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.repository.ExerciseRepository
@@ -37,9 +38,9 @@ class ExerciseDaoTest {
 
     @Test
     fun seedingRunsOnceAndKeepsCustomExercises() = runTest {
-        repository.seedIfEmpty(context)
+        repository.seedLibrary(context)
         val custom = repository.addCustom("Landmine Press", "shoulders", "other", TrackingType.WEIGHT_REPS)
-        repository.seedIfEmpty(context)
+        repository.seedLibrary(context)
 
         val all = repository.observeAll().first()
         assertEquals(877, all.size)
@@ -47,10 +48,28 @@ class ExerciseDaoTest {
     }
 
     @Test
+    fun seedingAddsNewLibraryExercisesWithoutTouchingExistingRows() = runTest {
+        val library = ExerciseSeed.parse(context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() })
+        // An install from an older app with a shorter library, one built-in edited and a custom exercise.
+        repository.addMissingBuiltIns(library.take(100))
+        db.openHelper.writableDatabase.execSQL("UPDATE exercises SET name = 'Edited' WHERE id = '${library[0].id}'")
+        val custom = repository.addCustom("Landmine Press", "shoulders", "other", TrackingType.WEIGHT_REPS)
+        assertEquals(101, repository.observeAll().first().size)
+
+        repository.seedLibrary(context)
+
+        val all = repository.observeAll().first().associateBy { it.id }
+        assertEquals(library.size + 1, all.size)
+        assertTrue(library.all { it.id in all })
+        assertEquals("Edited", all.getValue(library[0].id).name)
+        assertEquals(custom, all.getValue(custom.id))
+    }
+
+    @Test
     fun seedingRepairsTheInjectedDatabase() = runTest {
-        repository.seedIfEmpty(context)
+        repository.seedLibrary(context)
         db.openHelper.writableDatabase.execSQL("UPDATE exercises SET trackingType = 'BODYWEIGHT_REPS' WHERE id = 'Plank'")
-        repository.seedIfEmpty(context)
+        repository.seedLibrary(context)
         assertEquals(TrackingType.DURATION, db.exerciseDao().getByIds(listOf("Plank")).single().trackingType)
     }
 

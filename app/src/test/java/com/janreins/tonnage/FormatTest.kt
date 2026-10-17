@@ -10,6 +10,19 @@ import org.junit.Test
 class FormatTest {
 
     @Test
+    fun lastBackupCountsCalendarDays() {
+        val zone = java.time.ZoneId.of("Europe/Amsterdam")
+        fun at(text: String) = java.time.LocalDateTime.parse(text).atZone(zone).toInstant().toEpochMilli()
+        val now = at("2026-10-17T09:00")
+        assertEquals("Last backup: never", Format.lastBackup(null, now, zone))
+        assertEquals("Last backup: today", Format.lastBackup(at("2026-10-17T00:05"), now, zone))
+        assertEquals("Last backup: yesterday", Format.lastBackup(at("2026-10-16T23:55"), now, zone))
+        assertEquals("Last backup: 9 days ago", Format.lastBackup(at("2026-10-08T12:00"), now, zone))
+        // A clock that moved backwards still reads as today.
+        assertEquals("Last backup: today", Format.lastBackup(at("2026-10-18T08:00"), now, zone))
+    }
+
+    @Test
     fun numbersDropTrailingZeros() {
         assertEquals("60", Format.number(60.0))
         assertEquals("62.5", Format.number(62.5))

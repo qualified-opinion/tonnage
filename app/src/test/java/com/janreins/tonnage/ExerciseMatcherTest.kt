@@ -32,6 +32,17 @@ class ExerciseMatcherTest {
     }
 
     @Test
+    fun anAliasWhoseExerciseIsMissingFromThePhoneIsIgnored() {
+        val full = ExerciseMatcher(library)
+        val (hevyName, id) = HevyAliases.byHevyName.entries.first { (name, id) ->
+            full.match(name).let { it.confidence == MatchConfidence.ALIAS && it.exerciseId == id }
+        }
+        val match = ExerciseMatcher(library.filterNot { it.id == id }).match(hevyName)
+        assertTrue("Matched a missing exercise: $match", match.exerciseId != id)
+        assertTrue(match.confidence != MatchConfidence.ALIAS)
+    }
+
+    @Test
     fun aRealHevyExportMostlyMatchesWithoutReview() {
         // The 37 exercise names in Jan's Hevy export (October 2026).
         val names = listOf(

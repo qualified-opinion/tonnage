@@ -1,5 +1,6 @@
 package com.janreins.tonnage.data.backup
 
+import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.RoutineContents
@@ -32,6 +33,11 @@ data class BackupContents(
 
 class BackupFormatException(message: String = "This file is incomplete or damaged. Nothing was changed.") : Exception(message)
 
+/** A backup bigger than restore accepts; writing it would make a file that can't be restored. */
+class BackupTooLargeException : Exception(
+    "Your history is too large for one backup file (the limit is ${BACKUP_BYTE_LIMIT / (1024 * 1024)} MB), so no file was saved.",
+)
+
 /**
  * The backup file format: JSON with a `schemaVersion`, so a later version of the app can read
  * (and if needed convert) older backups. Bump [SCHEMA_VERSION] when the format changes and keep
@@ -54,6 +60,13 @@ object BackupJson {
             JSONArray(contents.hevyMappings.map { JSONObject().put("hevyName", it.hevyName).put("exerciseId", it.exerciseId) }),
         )
     }.toString(1)
+
+    /** The file's bytes, refused when restore wouldn't accept them ([BACKUP_BYTE_LIMIT]). */
+    fun encode(contents: BackupContents, limit: Int = BACKUP_BYTE_LIMIT): ByteArray {
+        val bytes = write(contents).toByteArray(Charsets.UTF_8)
+        if (bytes.size > limit) throw BackupTooLargeException()
+        return bytes
+    }
 
     fun read(text: String): BackupContents {
         val root = try {

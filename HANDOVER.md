@@ -19,7 +19,7 @@ app/src/main/java/com/janreins/tonnage/
   data/repository/          Workout, Routine, Exercise and Import repositories
   data/hevy/                HevyCsv (parser), ExerciseMatcher, HevyAliases, BoundedRead
   data/backup/              BackupJson (file format) and BackupRepository (export/restore)
-  data/settings/            SettingsStore (SharedPreferences: rest time, theme, Hevy zone)
+  data/settings/            SettingsStore (SharedPreferences: rest time, theme, Hevy zone, last backup time)
   domain/                   pure logic: WorkoutStats (records), Progress, Milestones, Format
   timer/                    RestTimer (countdown state) and WorkoutSession
   service/                  WorkoutService (foreground service) and WorkoutNotifications
@@ -50,7 +50,7 @@ Not stored on purpose: personal records, milestones and progress stats. They are
 1. Bump `version`, write a `MIGRATION_4_5` that keeps every row, and add it to `addMigrations`.
 2. Add a case to `MigrationTest` that builds version 4 with real rows and opens it with the new app.
 3. Never use `fallbackToDestructiveMigration`. It would wipe the owner's history.
-4. The schema JSON export is switched on but not yet committed to `app/schemas` (roadmap item T16). CI uploads the generated files as the `room-schemas` artifact; commit them when you touch the schema.
+4. Commit the new schema JSON from `app/schemas`. CI's "Check Room schemas are committed" step fails when the build writes a schema that isn't in git, and prints the file to commit (it is also in the run's `room-schemas` artifact).
 
 **Backups** (`data/backup`) are JSON with `format` and `schemaVersion`. Bump `BackupJson.SCHEMA_VERSION` for any change an older app could not read, and keep the reader able to read every older version. Restore checks everything first, then replaces data in one transaction, and refuses while a workout is in progress.
 
@@ -64,11 +64,12 @@ Nobody needs Android Studio. GitHub Actions does all of it.
 | Publish a release | GitHub > **Actions** > **Android Release** > **Run workflow**, pick branch `main`, type a version such as `1.4.0`, run. It tests, builds a signed APK, tags the commit `v1.4.0` and publishes the GitHub Release with `Tonnage-1.4.0.apk`. Pushing a `v*` tag does the same. | `.github/workflows/android-release.yml` |
 
 Things to know about releases:
-- **Always run it from `main`.** The workflow will publish from whatever branch is picked.
+- **Always run it from `main`.** A run with a version typed fails on any other branch; with the version blank it only builds an APK artifact.
 - `versionCode` is the Android Release workflow's run number, so it only goes up. Don't rename or recreate that workflow file, or the numbers restart and phones refuse the update as a downgrade.
 - A published release must be signed with the owner's key; the run stops if the secrets are missing. The secrets are repository secrets (Settings > Secrets and variables > Actions), set and working since 1.0.0: `TONNAGE_KEYSTORE_BASE64`, `TONNAGE_KEYSTORE_PASSWORD`, `TONNAGE_KEY_ALIAS`, `TONNAGE_KEY_PASSWORD`. Never print them or commit a keystore (`.gitignore` blocks `*.jks` and `*.keystore`).
 - CI debug APKs are signed with a different key than releases, so they can't be installed over the owner's release install. The owner tests through published releases. Switching between the two needs Back up, uninstall, install, Restore.
-- Releases so far: 1.0.0 (2026-10-15), 1.1.0, 1.2.0 and 1.3.0 (2026-10-16). 1.4.0 (2026-10-17) carries batches 1 and 2 (PRs #13 and #14).
+- Releases so far: 1.0.0 (2026-10-15), 1.1.0, 1.2.0 and 1.3.0 (2026-10-16). 1.4.0 (2026-10-17) carries batches 1 and 2 (PRs #13 and #14); 1.4.1 the plank time fix (PR #17).
+- Dependabot (`.github/dependabot.yml`) opens weekly update PRs for Gradle and GitHub Actions. Merge one only when its CI is green.
 - The cloud containers Claude runs in have no Android SDK (Google's download host is blocked), so builds there are checked only by CI. Run whatever JVM-only checks you can locally, then let CI build.
 
 ## Conventions that bite
