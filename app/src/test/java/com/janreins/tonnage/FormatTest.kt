@@ -37,6 +37,18 @@ class FormatTest {
     }
 
     @Test
+    fun durationDigitsFillFromTheRight() {
+        // The number pad has no colon, so plain digits are read like a stopwatch.
+        assertEquals(45, Format.parseDuration("45"))
+        assertEquals(90, Format.parseDuration("130"))
+        assertEquals(600, Format.parseDuration("1000"))
+        assertEquals(3723, Format.parseDuration("10203"))
+        assertEquals(3600, Format.parseDuration("10000"))
+        assertEquals(90, Format.parseDuration("0130"))
+        assertNull(Format.parseDuration("1234567"))
+    }
+
+    @Test
     fun restOffAndVolume() {
         assertEquals("Off", Format.restSeconds(0))
         assertEquals("1:30", Format.restSeconds(90))

@@ -15,14 +15,14 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 | 1.1.0 | 2026-10-16 | Muscle heat map on the Progress tab |
 | 1.2.0 | 2026-10-16 | Fuller body map with 40+ named muscles |
 | 1.3.0 | 2026-10-16 | Detailed anatomy art (Ryan Graves, CC BY 4.0) |
-| not released | | Batch 1 (backup and restore safety, PR #13) and batch 2 (Hevy import fidelity, PR #14). Publish as 1.4.0 from `main` after the phone checks under "Open verification" (N15). |
+| 1.4.0 | 2026-10-17 | Batch 1 (backup and restore safety, PR #13) and batch 2 (Hevy import fidelity, PR #14) |
 
 ## Where the work stands
 
 | Batch | Branch | Scope | Status |
 |---|---|---|---|
-| 1. Backup and restore safety | `fix/backup-restore-safety` | T01 to T04, T13 | Merged (PR #13, `fddc9b5`). Not yet tried on a phone. |
-| 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | Merged (PR #14, `7721bc7`). Being phone-tested. |
+| 1. Backup and restore safety | `fix/backup-restore-safety` | T01 to T04, T13 | Merged (PR #13, `fddc9b5`). Released in 1.4.0 and phone-tested 2026-10-17: backup and restore of real data work, and restore is refused during a workout. |
+| 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | Merged (PR #14, `7721bc7`). Released in 1.4.0 and phone-tested 2026-10-17: re-import adds nothing and a renamed workout is skipped. Plank time entry needed a colon the number pad lacks (N03, fixed). |
 | 3. Logging data safety | `fix/logging-data-safety` | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | Not started. Pack: `handoffs/batch3-logging-data-safety.md` |
 | 4. Backup and schema safety | `fix/backup-schema-safety` | restore message, duplicate ids, export size, last-backed-up line, T16, Dependabot | Not started. Pack: `handoffs/batch4-backup-schema-safety.md` |
 | 5. Stats and speed | `fix/stats-and-speed` | PR flow scope, T18, T14, T12, blank-history rule, redraw cost | Not started. Pack: `handoffs/batch5-stats-and-speed.md` |
@@ -51,7 +51,7 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 | (T-less) | Dependabot missing; Compose keep rule still in `proguard-rules.pro` | 4 (Dependabot), later (keep rule) |
 | N01 | Finish with nothing ticked offers a one-tap "Discard workout" that deletes typed but unticked sets | 3 |
 | N02 | "Remove exercise" deletes logged sets without a confirm | 3 |
-| N03 | Duration cell: typing "130" stores 130 seconds and keeps showing "130" (display fix only) | 3 |
+| N03 | Duration cell: typing "130" stored 130 seconds and kept showing "130", and the number pad has no colon | Fixed after the 1.4.0 phone test: plain digits now fill from the right ("130" is 1:30) and the cell shows the saved m:ss when you leave it |
 | N04 | A blank ticked set counts as an exercise's first session, so later PRs say "was 0 kg" | 5 |
 | N05 | If the app dies while a finished workout is being edited, blank "completed" sets stay in it | 5 |
 | N06 | Routine editor draft lives only in memory | later |
@@ -63,7 +63,7 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 | N12 | Library updates never reach installed phones (seed only runs on an empty library), so a future alias or backup can point at an exercise the phone lacks | 4 |
 | N13 | The release workflow publishes from whatever branch is picked | 4 |
 | N14 | Theme and the saved Hevy import zone are not in backups, so a re-import after restoring on a phone in another zone can duplicate | later (needs a backup format bump) |
-| N15 | Batches 1 and 2 are merged but not released | owner, after phone checks |
+| N15 | Batches 1 and 2 were merged but not released | Done: released as 1.4.0 |
 | TG | Test gaps: nothing tests `WorkoutViewModel`, `WorkoutService`, set-input filtering or restore failure paths | each batch adds its own |
 
 ## Decisions the owner still owes
@@ -108,9 +108,8 @@ The coordination room is the "Coding" group chat in Grok Bot (Jan, Atlas, Kiln, 
 Open the repo (Claude Code reads `CLAUDE.md`, which points to `AGENTS.md`; Codex reads `AGENTS.md`). A good first message: "Read `HANDOVER.md`, `docs/plan/ROADMAP.md` and `AGENTS.md`, then do the next not-started batch from its pack in `docs/plan/handoffs/`. Make the feature branch named in the pack, keep to its scope, add the tests it requires, run `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, update the status table, and open a PR. Do not merge." For review, start a fresh session (or the other tool) and say: "Review this PR against the acceptance criteria in the pack. Report blockers, should-fix and nits with file and line. Do not edit." Build with one engine and review with the other.
 
 ## Open verification
-Nothing below has been checked on a real phone:
-- A real backup and restore of the owner's data (batch 1).
-- A Hevy re-import after batch 2: the preview says "Times read as <zone>", nothing duplicates, a renamed workout is skipped, Plank records by time.
+Not yet checked on a real phone (batches 1 and 2 passed on 2026-10-17):
+- Plank time entry with the number pad after the N03 fix.
 - The R8 release build at runtime. CI only compiles it.
 - Rest timer behaviour under Doze and OEM battery savers (batch 6).
 

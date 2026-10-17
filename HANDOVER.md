@@ -68,7 +68,7 @@ Things to know about releases:
 - `versionCode` is the Android Release workflow's run number, so it only goes up. Don't rename or recreate that workflow file, or the numbers restart and phones refuse the update as a downgrade.
 - A published release must be signed with the owner's key; the run stops if the secrets are missing. The secrets are repository secrets (Settings > Secrets and variables > Actions), set and working since 1.0.0: `TONNAGE_KEYSTORE_BASE64`, `TONNAGE_KEYSTORE_PASSWORD`, `TONNAGE_KEY_ALIAS`, `TONNAGE_KEY_PASSWORD`. Never print them or commit a keystore (`.gitignore` blocks `*.jks` and `*.keystore`).
 - CI debug APKs are signed with a different key than releases, so they can't be installed over the owner's release install. The owner tests through published releases. Switching between the two needs Back up, uninstall, install, Restore.
-- Releases so far: 1.0.0 (2026-10-15), 1.1.0, 1.2.0 and 1.3.0 (2026-10-16). Batches 1 and 2 (PRs #13 and #14) merged after 1.3.0 and are **not released yet**.
+- Releases so far: 1.0.0 (2026-10-15), 1.1.0, 1.2.0 and 1.3.0 (2026-10-16). 1.4.0 (2026-10-17) carries batches 1 and 2 (PRs #13 and #14).
 - The cloud containers Claude runs in have no Android SDK (Google's download host is blocked), so builds there are checked only by CI. Run whatever JVM-only checks you can locally, then let CI build.
 
 ## Conventions that bite
