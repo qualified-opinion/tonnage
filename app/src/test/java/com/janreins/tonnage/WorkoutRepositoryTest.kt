@@ -152,7 +152,7 @@ class WorkoutRepositoryTest {
 
     @Test
     fun customExercisesUsedInAWorkoutAreKept() = runTest {
-        val exercises = ExerciseRepository(db.exerciseDao())
+        val exercises = ExerciseRepository(db)
         val custom = exercises.addCustom("Landmine Press", "shoulders", "other", TrackingType.WEIGHT_REPS)
         val id = workouts.startEmpty()
         workouts.addExercises(id, listOf(custom.id), restSeconds = 90)

@@ -60,8 +60,7 @@ class ImportRepository(
     suspend fun prepare(csv: String): ImportPlan {
         val zone = settings.hevyImportZone ?: TimeZone.getDefault().id
         val workouts = HevyCsv.parse(csv, TimeZone.getTimeZone(zone))
-        val imported = importedIdentities()
-        val newWorkouts = workouts.filter { it.identity !in imported }
+        val newWorkouts = newWorkouts(workouts, dao.hevyWorkouts())
         val saved = dao.mappings().associate { it.hevyName to it.exerciseId }
         val matcher = ExerciseMatcher(dao.allExercises(), saved)
         val exercises = newWorkouts.flatMap { it.exercises }
@@ -80,8 +79,10 @@ class ImportRepository(
      */
     suspend fun import(plan: ImportPlan, choices: Map<String, ExerciseChoice>, restSeconds: Int): ImportResult {
         val result = db.withTransaction {
-            val alreadyImported = importedIdentities().toMutableSet()
-            val workouts = plan.newWorkouts.filter { alreadyImported.add(it.identity) }
+            val plannedIdentities = plan.newWorkouts.map { it.identity }.toSet()
+            // Include preview-skipped workouts so their exact matches cannot absorb a new title.
+            val workouts = newWorkouts(plan.workouts + plan.newWorkouts, dao.hevyWorkouts())
+                .filter { it.identity in plannedIdentities }
             val exercisesByName = workouts.flatMap { it.exercises }.groupBy { it.name }
 
             val created = mutableListOf<Exercise>()
@@ -152,8 +153,25 @@ class ImportRepository(
         return result
     }
 
-    private suspend fun importedIdentities(): Set<HevyWorkoutIdentity> =
-        dao.hevyWorkouts().map { HevyWorkoutIdentity.of(it.title, it.startedAt) }.toSet()
+    /** Reserve exact matches first, then use remaining stored rows as renamed matches, one to one. */
+    private fun newWorkouts(incoming: List<HevyWorkout>, stored: List<HevyWorkoutIdentity>): List<HevyWorkout> {
+        val unique = incoming.distinctBy { it.identity }
+        val remaining = stored.map { HevyWorkoutIdentity.of(it.title, it.startedAt) }
+            .groupBy { it.startedAt }.mapValues { (_, identities) -> identities.toMutableList() }
+        val exact = unique.filter { remaining[it.startedAt]?.remove(it.identity) == true }
+            .map { it.identity }.toSet()
+        return unique.filter { workout ->
+            if (workout.identity in exact) {
+                false
+            } else {
+                val sameStart = remaining[workout.startedAt]
+                if (sameStart.isNullOrEmpty()) true else {
+                    sameStart.removeAt(sameStart.lastIndex)
+                    false
+                }
+            }
+        }
+    }
 
     companion object {
         /** Guesses how a new exercise is logged from the numbers Hevy recorded for it. */

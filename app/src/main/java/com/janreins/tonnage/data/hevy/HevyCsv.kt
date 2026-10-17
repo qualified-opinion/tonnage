@@ -72,6 +72,10 @@ object HevyCsv {
         // Hevy lists newest first; keep the file's grouping but return oldest first.
         val workouts = LinkedHashMap<HevyWorkoutIdentity, MutableList<CsvRow>>()
         val startTimes = mutableMapOf<String, Long>()
+        fun CsvRow.finite(value: Double, index: Int): Double {
+            if (!value.isFinite()) throw HevyFormatException("Row $line has an invalid value in ${header[index]}.")
+            return value
+        }
         fun CsvRow.number(index: Int?, integer: Boolean = false): Double? {
             val value = cell(index).replace(',', '.').toDoubleOrNull() ?: return null
             if (!value.isFinite() || (integer && value > Int.MAX_VALUE)) {
@@ -113,10 +117,13 @@ object HevyCsv {
                 }
                 currentSets += HevySet(
                     type = setTypeOf(row.cell(setType)),
-                    weightKg = row.number(weightKg) ?: row.number(weightLb)?.times(LB_TO_KG)?.let(::roundKg),
+                    weightKg = row.number(weightKg) ?: row.number(weightLb)?.let {
+                        val kg = row.finite(it * LB_TO_KG, weightLb!!)
+                        row.finite(roundKg(kg), weightLb)
+                    },
                     reps = row.number(reps, integer = true)?.toInt(),
-                    distanceKm = row.number(distanceKm) ?: row.number(distanceMiles)?.times(MILE_TO_KM)?.also {
-                        if (!it.isFinite()) throw HevyFormatException("Row ${row.line} has an invalid value in ${header[distanceMiles!!]}.")
+                    distanceKm = row.number(distanceKm) ?: row.number(distanceMiles)?.let {
+                        row.finite(it * MILE_TO_KM, distanceMiles!!)
                     },
                     durationSec = row.number(duration, integer = true)?.toInt(),
                     rpe = row.number(rpe),
@@ -145,7 +152,7 @@ object HevyCsv {
     }
 
     /** Pounds converted to kg are kept to 0.01 kg so 135 lb doesn't become 61.23496995 kg. */
-    private fun roundKg(kg: Double): Double = Math.round(kg * 100) / 100.0
+    private fun roundKg(kg: Double): Double = Math.floor(kg * 100 + 0.5) / 100.0
 
     private val datePatterns = listOf("d MMM yyyy, HH:mm", "d MMM yyyy, HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd'T'HH:mm:ss")
 

@@ -24,7 +24,7 @@ data class ExercisesUiState(
 
 class ExercisesViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = ExerciseRepository(AppDatabase.getInstance(application).exerciseDao())
+    private val repository = ExerciseRepository(AppDatabase.getInstance(application))
     private val filter = MutableStateFlow(ExerciseFilter())
     private val seeded = MutableStateFlow(false)
 

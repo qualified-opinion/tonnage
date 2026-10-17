@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -95,16 +96,28 @@ class DataViewModelTest {
     @Test
     fun staleFailureCannotReplaceANewerPreview() = checkStaleReader(fail = true)
 
-    private fun checkStaleReader(fail: Boolean) {
+    @Test
+    fun staleSuccessCannotPublishEvenWithoutCancellation() = checkStaleReader(fail = false, cancel = false)
+
+    @Test
+    fun staleFailureCannotPublishEvenWithoutCancellation() = checkStaleReader(fail = true, cancel = false)
+
+    private fun checkStaleReader(fail: Boolean, cancel: Boolean = true) {
         val (old, job) = startSlow(fail)
+        if (!cancel) {
+            // Isolate the operation-id guard: let the old coroutine complete normally.
+            DataViewModel::class.java.getDeclaredField("importReadJob").apply { isAccessible = true }
+                .set(model, null)
+        }
         val uri = Uri.parse("content://test/new")
         shadowOf(application.contentResolver).registerInputStream(uri, csv("New").byteInputStream())
         model.startImport(uri)
-        assertTrue(job.isCancelled)
+        assertEquals(cancel, job.isCancelled)
         awaitCondition { model.importState.value is ImportState.Ready }
         assertEquals("New", (model.importState.value as ImportState.Ready).plan.workouts.single().title)
         old.release.countDown()
         awaitCondition { job.isCompleted }
+        if (!cancel) assertFalse("Stale reader must complete without cancellation", job.isCancelled)
         assertEquals("New", (model.importState.value as ImportState.Ready).plan.workouts.single().title)
     }
 
@@ -114,7 +127,7 @@ class DataViewModelTest {
         shadowOf(application.contentResolver).registerInputStream(uri, sizedStream(25 * 1024 * 1024 + 1))
         model.startImport(uri)
         awaitCondition { model.importState.value is ImportState.Failed }
-        assertTrue((model.importState.value as ImportState.Failed).message.contains("This file is too large to be a Hevy export"))
+        assertEquals("This file is too large to be a Hevy export", (model.importState.value as ImportState.Failed).message)
     }
 
     @Test
@@ -123,7 +136,7 @@ class DataViewModelTest {
         shadowOf(application.contentResolver).registerInputStream(uri, sizedStream(50 * 1024 * 1024 + 1))
         model.openBackup(uri)
         awaitCondition { model.backupState.value is BackupState.Failed }
-        assertTrue((model.backupState.value as BackupState.Failed).message.contains("This file is too large to be a Tonnage backup"))
+        assertEquals("This file is too large to be a Tonnage backup", (model.backupState.value as BackupState.Failed).message)
     }
 
     private fun sizedStream(size: Int): InputStream = object : InputStream() {

@@ -9,6 +9,7 @@ import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
+import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HevyFormatException
 import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
 import com.janreins.tonnage.data.hevy.BACKUP_TOO_LARGE
@@ -104,6 +105,8 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
                 ImportState.Ready(plan, plan.defaultChoices(), reviewing = plan.matches.any { it.confidence.needsReview })
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: FileTooLargeException) {
+                ImportState.Failed(e.message!!)
             } catch (e: HevyFormatException) {
                 ImportState.Failed(e.message ?: "This file couldn't be read.")
             } catch (e: Exception) {
@@ -179,6 +182,8 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _backup.value = try {
                 BackupState.ConfirmRestore(withContext(Dispatchers.IO) { BackupJson.read(readText(uri, BACKUP_BYTE_LIMIT, BACKUP_TOO_LARGE)) })
+            } catch (e: FileTooLargeException) {
+                BackupState.Failed(e.message!!)
             } catch (e: BackupFormatException) {
                 BackupState.Failed(e.message ?: "This backup can't be read.")
             } catch (e: CancellationException) {

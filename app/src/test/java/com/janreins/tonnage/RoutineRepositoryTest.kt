@@ -138,7 +138,7 @@ class RoutineRepositoryTest {
 
     @Test
     fun customExercisesUsedInARoutineAreKept() = runTest {
-        val exercises = ExerciseRepository(db.exerciseDao())
+        val exercises = ExerciseRepository(db)
         val custom = exercises.addCustom("Landmine Press", "shoulders", "other", TrackingType.WEIGHT_REPS)
         val draft = RoutineDraft(name = "Shoulders").addExercises(listOf(custom.id), restSeconds = 90, nextKey)
         val id = routines.save(draft.id, draft.name, draft.toEntities())

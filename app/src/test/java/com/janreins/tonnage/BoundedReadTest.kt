@@ -2,6 +2,7 @@ package com.janreins.tonnage
 
 import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
 import com.janreins.tonnage.data.hevy.BACKUP_TOO_LARGE
+import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HEVY_BYTE_LIMIT
 import com.janreins.tonnage.data.hevy.HEVY_TOO_LARGE
 import com.janreins.tonnage.data.hevy.readBoundedText
@@ -29,7 +30,7 @@ class BoundedReadTest {
             override fun available() = 0
             override fun read(): Int { read++; return 'x'.code }
         }
-        val error = assertThrows(IllegalArgumentException::class.java) {
+        val error = assertThrows(FileTooLargeException::class.java) {
             readBoundedText(unknownSize, 10, HEVY_TOO_LARGE)
         }
         assertEquals(HEVY_TOO_LARGE, error.message)
@@ -44,7 +45,7 @@ class BoundedReadTest {
                 override fun read(): Int = 'x'.code
                 override fun read(bytes: ByteArray, offset: Int, length: Int) = length
             }
-            assertEquals(message, assertThrows(IllegalArgumentException::class.java) {
+            assertEquals(message, assertThrows(FileTooLargeException::class.java) {
                 readBoundedText(stream, limit, message)
             }.message)
         }

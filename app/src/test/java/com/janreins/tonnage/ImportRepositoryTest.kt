@@ -151,11 +151,27 @@ class ImportRepositoryTest {
     }
 
     @Test
-    fun sameMinuteWorkoutsImportAcrossFilesInEitherOrder() = runTest {
+    fun aDifferentTitleAtAStoredStartIsTreatedAsARenameAcrossFiles() = runTest {
+        // A stored workout at this minute cannot be told apart from a renamed copy of the incoming
+        // one, so it absorbs it (no duplicates). Genuine same-minute workouts import when they
+        // arrive in the same file; see sameMinuteWorkoutsImportInEitherOrder.
         for (titles in listOf(listOf("A", "B"), listOf("B", "A"))) {
             db.importDao().deleteAllWorkouts()
-            titles.forEach { assertEquals(1, importCsv(one(it))) }
+            assertEquals(1, importCsv(one(titles[0])))
+            assertEquals(0, importCsv(one(titles[1])))
+            assertEquals(0, importCsv(one(titles[0])))
+            assertEquals(setOf(titles[0]), db.importDao().finishedWorkouts().map { it.title }.toSet())
+        }
+    }
+
+    @Test
+    fun sameMinuteWorkoutsImportInEitherOrder() = runTest {
+        for (titles in listOf(listOf("A", "B"), listOf("B", "A"))) {
+            db.importDao().deleteAllWorkouts()
+            val text = one(titles[0]) + "\n" + one(titles[1]).substringAfter('\n')
+            assertEquals(2, importCsv(text))
             titles.forEach { assertEquals(0, importCsv(one(it))) }
+            assertEquals(0, importCsv(text))
             assertEquals(titles.toSet(), db.importDao().finishedWorkouts().map { it.title }.toSet())
         }
     }
@@ -176,10 +192,11 @@ class ImportRepositoryTest {
     fun transactionRechecksIdentityAndDeduplicatesIncomingPlans() = runTest {
         val a = importer.prepare(one("A"))
         val b = importer.prepare(one("B"))
-        assertEquals(1, importer.import(a, a.defaultChoices(), 90).workouts)
         assertEquals(1, importer.import(b.copy(newWorkouts = b.newWorkouts + b.newWorkouts), b.defaultChoices(), 90).workouts)
+        // A stale preview of A made before B was stored: B now occupies that minute, so A is a rename.
         assertEquals(0, importer.import(a, a.defaultChoices(), 90).workouts)
-        assertEquals(2, db.importDao().finishedWorkouts().size)
+        assertEquals(0, importer.import(b, b.defaultChoices(), 90).workouts)
+        assertEquals(1, db.importDao().finishedWorkouts().size)
     }
 
     @Test
@@ -241,16 +258,35 @@ class ImportRepositoryTest {
     fun successfulImportCanAlwaysBeExportedAsBackup() = runTest {
         assertEquals(3, importCsv(csv))
         assertEquals(1, importCsv(one("Planks", weight = "0", reps = "2147483647")))
-        val backup = BackupRepository(db).export(90)
-        assertEquals(4, BackupJson.read(BackupJson.write(backup)).workouts.size)
+        val backups = BackupRepository(db, now = { 10L })
+        assertEquals(4, BackupJson.read(BackupJson.write(backups.export(90))).workouts.size)
+        val cases = listOf(
+            "weight_kg" to "1e309", "weight_kg" to "Infinity", "weight_kg" to "NaN",
+            "distance_miles" to "1.7e308", "weight_lbs" to "1.7e308",
+        )
+        for ((column, value) in cases) {
+            val before = BackupJson.write(backups.export(90))
+            val text = "title,start_time,exercise_title,$column\nUnsafe $column $value,2026-09-01 10:00,Plank,$value"
+            val outcome = try {
+                assertEquals(1, importCsv(text))
+                val exported = backups.export(90)
+                assertEquals(exported.workouts.size, BackupJson.read(BackupJson.write(exported)).workouts.size)
+                "exported"
+            } catch (e: HevyFormatException) {
+                assertEquals("Row 2 has an invalid value in $column.", e.message)
+                assertEquals(before, BackupJson.write(backups.export(90)))
+                "rejected"
+            }
+            assertEquals("$column=$value must be rejected", "rejected", outcome)
+        }
     }
 
     @Test
     fun plankImportTracksSecondsInFreshSeedAndAfterExistingInstallRepair() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db.clearAllTables()
-        val exercises = ExerciseRepository(db.exerciseDao())
-        exercises.seedIfEmpty(context, db)
+        val exercises = ExerciseRepository(db)
+        exercises.seedIfEmpty(context)
         assertEquals(1, importCsv(one()))
         val plank = workouts.observeWorkout(db.importDao().finishedWorkouts().single().id).first()!!.blocks.single()
         assertEquals(TrackingType.DURATION, plank.exercise!!.trackingType)
@@ -263,8 +299,8 @@ class ImportRepositoryTest {
         val beforeWorkouts = db.importDao().finishedWorkouts()
         val beforeBlocks = db.importDao().allWorkoutExercises()
         val beforeSets = db.importDao().allWorkoutSets()
-        exercises.seedIfEmpty(context, db)
-        exercises.seedIfEmpty(context, db)
+        exercises.seedIfEmpty(context)
+        exercises.seedIfEmpty(context)
         assertEquals(beforeExercises.map {
             if (it.id in ExerciseSeed.trackingOverrides && !it.isCustom) it.copy(trackingType = TrackingType.DURATION) else it
         }, db.importDao().allExercises())
@@ -280,17 +316,72 @@ class ImportRepositoryTest {
     fun repairDoesNotTouchACustomExerciseEvenWithAnOverrideId() = runTest {
         db.openHelper.writableDatabase.execSQL("UPDATE exercises SET isCustom = 1, trackingType = 'WEIGHT_REPS' WHERE id = 'Plank'")
         val before = db.exerciseDao().getByIds(listOf("Plank")).single()
-        ExerciseRepository(db.exerciseDao()).seedIfEmpty(ApplicationProvider.getApplicationContext(), db)
+        ExerciseRepository(db).seedIfEmpty(ApplicationProvider.getApplicationContext())
         assertEquals(before, db.exerciseDao().getByIds(listOf("Plank")).single())
     }
 
     @Test
-    fun renamingAnImportedWorkoutLosesTheOriginalTitleIdentity() = runTest {
+    fun aRenamedWorkoutIsSkippedOnReimport() = runTest {
+        val stale = importer.prepare(one())
         importCsv(one())
         val id = db.importDao().finishedWorkouts().single().id
         workouts.rename(id, "Renamed")
-        assertEquals(1, importCsv(one()))
-        assertEquals(setOf("A", "Renamed"), db.importDao().finishedWorkouts().map { it.title }.toSet())
+        val again = importer.prepare(one())
+        assertTrue(again.newWorkouts.isEmpty())
+        assertEquals(1, again.skipped)
+        assertEquals(0, importer.import(again, again.defaultChoices(), 90).workouts)
+        val rechecked = importer.import(stale, stale.defaultChoices(), 90)
+        assertEquals(0, rechecked.workouts)
+        assertEquals(1, rechecked.skipped)
+        assertEquals(listOf("Renamed"), db.importDao().finishedWorkouts().map { it.title })
+    }
+
+    @Test
+    fun exactMatchesAreReservedBeforeMatchingRenamedSameMinuteWorkouts() = runTest {
+        for (titles in listOf(listOf("A", "B"), listOf("B", "A"))) {
+            db.importDao().deleteAllWorkouts()
+            val text = one(titles[0]) + "\n" + one(titles[1]).substringAfter('\n')
+            val stale = importer.prepare(text)
+            assertEquals(2, importCsv(text))
+            val a = db.importDao().finishedWorkouts().single { it.title == "A" }
+            workouts.rename(a.id, "Renamed")
+            val again = importer.prepare(text)
+            assertEquals(2, again.skipped)
+            assertTrue(again.newWorkouts.isEmpty())
+            assertEquals(0, importer.import(again, again.defaultChoices(), 90).workouts)
+            val rechecked = importer.import(stale, stale.defaultChoices(), 90)
+            assertEquals(0, rechecked.workouts)
+            assertEquals(2, rechecked.skipped)
+            assertEquals(setOf("Renamed", "B"), db.importDao().finishedWorkouts().map { it.title }.toSet())
+        }
+    }
+
+    @Test
+    fun oneStoredWorkoutSkipsOneAndImportsOneNewWorkoutAtTheSameMinute() = runTest {
+        for (rename in listOf(false, true)) {
+            for (titles in listOf(listOf("A", "B"), listOf("B", "A"))) {
+                db.importDao().deleteAllWorkouts()
+                val text = one(titles[0]) + "\n" + one(titles[1]).substringAfter('\n')
+                val stale = importer.prepare(text)
+                assertEquals(1, importCsv(one("A")))
+                if (rename) workouts.rename(db.importDao().finishedWorkouts().single().id, "Renamed")
+                val preview = importer.prepare(text)
+                assertEquals(1, preview.skipped)
+                assertEquals(1, preview.newWorkouts.size)
+                val result = importer.import(preview, preview.defaultChoices(), 90)
+                assertEquals(1, result.workouts)
+                assertEquals(1, result.skipped)
+                assertEquals(2, db.importDao().finishedWorkouts().size)
+
+                db.importDao().deleteAllWorkouts()
+                assertEquals(1, importCsv(one("A")))
+                if (rename) workouts.rename(db.importDao().finishedWorkouts().single().id, "Renamed")
+                val rechecked = importer.import(stale, stale.defaultChoices(), 90)
+                assertEquals(1, rechecked.workouts)
+                assertEquals(1, rechecked.skipped)
+                assertEquals(2, db.importDao().finishedWorkouts().size)
+            }
+        }
     }
 
 }

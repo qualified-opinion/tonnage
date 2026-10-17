@@ -41,7 +41,7 @@ class SettingsStore internal constructor(context: Context) {
     val hevyImportZone: String? get() = prefs.getString(KEY_HEVY_ZONE, null)
 
     fun rememberHevyImportZone(zoneId: String) {
-        if (hevyImportZone == null) prefs.edit { putString(KEY_HEVY_ZONE, zoneId) }
+        if (hevyImportZone == null) prefs.edit(commit = true) { putString(KEY_HEVY_ZONE, zoneId) }
     }
 
     companion object {

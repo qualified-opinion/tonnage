@@ -101,6 +101,20 @@ class HevyCsvTest {
     }
 
     @Test
+    fun poundsThatOverflowDuringRoundingNameTheRowAndColumn() {
+        val csv = "title,start_time,exercise_title,weight_lbs\nA,2026-08-01 10:00,Plank,1.7e308"
+        val error = assertThrows(HevyFormatException::class.java) { HevyCsv.parse(csv, utc) }
+        assertEquals("Row 2 has an invalid value in weight_lbs.", error.message)
+    }
+
+    @Test
+    fun largePoundsDoNotSaturateToALongDuringRounding() {
+        val csv = "title,start_time,exercise_title,weight_lbs\nA,2026-08-01 10:00,Plank,1e20"
+        val kg = HevyCsv.parse(csv, utc).single().exercises.single().sets.single().weightKg!!
+        assertEquals(1e20 * 0.45359237, kg, 1e4)
+    }
+
+    @Test
     fun blankNegativeShortAndLongRowsKeepTheirBehaviour() {
         val csv = """
             title,start_time,exercise_title,weight_kg,reps,distance_km,duration_seconds,rpe
