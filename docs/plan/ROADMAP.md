@@ -2,7 +2,7 @@
 
 This file is the single place to learn what is done, what is next, and how work on Tonnage is run. Any agent or person can take over from here, including the owner working alone with Claude Code or Codex, one PR at a time. Keep it current: every batch PR updates the status table below.
 
-**Last updated:** 2026-10-17, after batch 2 merged and the handover review (`main` at `1816b12`). A fresh review of `main` produced batches 3 to 6 below; the handover review (`reviews/claude-review-3.md`) added N12 to N15. None of the batches is started.
+**Last updated:** 2026-10-17, after batch 3 merged (`a3de87b`) and batch 4 went into review. A fresh review of `main` produced batches 3 to 6 below; the handover review (`reviews/claude-review-3.md`) added N12 to N15.
 
 ## What Tonnage is
 A private, offline strength logger for Android (a Hevy replacement with no social features), built with Kotlin, Compose, Material 3 and Room. Weights are stored in kg, and the owner uses kg. There is no `INTERNET` permission, no analytics and no cloud sync, and none of that changes. Architecture, the database, build and release are in `HANDOVER.md`; the rules are in `AGENTS.md`. Read both first.
@@ -16,6 +16,7 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 | 1.2.0 | 2026-10-16 | Fuller body map with 40+ named muscles |
 | 1.3.0 | 2026-10-16 | Detailed anatomy art (Ryan Graves, CC BY 4.0) |
 | 1.4.0 | 2026-10-17 | Batch 1 (backup and restore safety, PR #13) and batch 2 (Hevy import fidelity, PR #14) |
+| 1.4.1 | 2026-10-17 | Plank and other time cells take plain digits from the number pad (N03, PR #17) |
 
 ## Where the work stands
 
@@ -23,8 +24,8 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 |---|---|---|---|
 | 1. Backup and restore safety | `fix/backup-restore-safety` | T01 to T04, T13 | Merged (PR #13, `fddc9b5`). Released in 1.4.0 and phone-tested 2026-10-17: backup and restore of real data work, and restore is refused during a workout. |
 | 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | Merged (PR #14, `7721bc7`). Released in 1.4.0 and phone-tested 2026-10-17: re-import adds nothing and a renamed workout is skipped. Plank time entry needed a colon the number pad lacks (N03, fixed). |
-| 3. Logging data safety | `claude/plan-and-handover-n0yv7w` (this session can only push that branch) | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | In review (PR #18). Needs a phone check: keyboard and focus, tapping previous while typing, finish and discard dialogs, screen staying on. |
-| 4. Backup and schema safety | `fix/backup-schema-safety` | restore message, duplicate ids, export size, last-backed-up line, T16, Dependabot | Not started. Pack: `handoffs/batch4-backup-schema-safety.md` |
+| 3. Logging data safety | `claude/plan-and-handover-n0yv7w` (this session can only push that branch) | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | Merged (PR #18, `a3de87b`), not released yet. Needs a phone check: keyboard and focus, tapping previous while typing, finish and discard dialogs, screen staying on. |
+| 4. Backup and schema safety | `claude/plan-and-handover-n0yv7w` | restore message, duplicate ids, export size, last-backed-up line, T16, Dependabot, N12, N13 | In review (PR #19). Needs a phone check: a real backup and restore, and the "Last backup" line in Settings. |
 | 5. Stats and speed | `fix/stats-and-speed` | PR flow scope, T18, T14, T12, blank-history rule, redraw cost | Not started. Pack: `handoffs/batch5-stats-and-speed.md` |
 | 6. Timer and service lifecycle | `fix/timer-service-lifecycle` | T09, T10, notifications-off notice, accessibility | Not started. Pack: `handoffs/batch6-timer-service-lifecycle.md` |
 
@@ -40,7 +41,7 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 | T11 | A focused numeric cell can differ from Room after tapping a "previous" value | 3 |
 | T12 | Progress stays on the previous week if it stays on screen across Monday midnight (narrower than first reported) | 5 |
 | T14 | Finish preview shows duplicate PRs when an exercise is in more than one block | 5 |
-| T16 | No Room schema JSON in git, and no populated v3 upgrade test | 4 |
+| T16 | No Room schema JSON in git, and no populated v3 upgrade test | 4 (version 4 JSON committed; version 3 can't be regenerated, so its test builds it by hand) |
 | T18 | History recompute runs on the main thread while typing | 5 |
 | (T-less) | Blank-set tick counts as completed | 3 |
 | (T-less) | Input hardening (second decimal separator, absurd values) | 3 |
@@ -60,7 +61,7 @@ Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most o
 | N09 | Exercise picker loses its selection on rotation | later |
 | N10 | Rest timer ends silently if notifications are denied | 6 |
 | N11 | Set inputs have no screen-reader labels and touch targets are under 48 dp | 6 |
-| N12 | Library updates never reach installed phones (seed only runs on an empty library), so a future alias or backup can point at an exercise the phone lacks | 4 |
+| N12 | Library updates never reach installed phones (seed only runs on an empty library), so a future alias or backup can point at an exercise the phone lacks | 4 (the matcher already dropped aliases missing from the library; batch 4 adds the test) |
 | N13 | The release workflow publishes from whatever branch is picked | 4 |
 | N14 | Theme and the saved Hevy import zone are not in backups, so a re-import after restoring on a phone in another zone can duplicate | later (needs a backup format bump) |
 | N15 | Batches 1 and 2 were merged but not released | Done: released as 1.4.0 |
@@ -109,13 +110,13 @@ Open the repo (Claude Code reads `CLAUDE.md`, which points to `AGENTS.md`; Codex
 
 ## Open verification
 Not yet checked on a real phone (batches 1 and 2 passed on 2026-10-17):
-- Plank time entry with the number pad after the N03 fix.
+- Plank time entry with the number pad after the N03 fix (released in 1.4.1).
 - The R8 release build at runtime. CI only compiles it.
 - Rest timer behaviour under Doze and OEM battery savers (batch 6).
 
 ## Facts a new owner needs
 - The repo is public. Release signing keys come from CI secrets only (names in `HANDOVER.md`). A published release refuses to build without them; other release builds fall back to the debug key.
-- Room is at version 4 with migrations 1 to 2, 2 to 3 and 3 to 4. Entity changes need a version bump, a non-destructive migration and a `MigrationTest` case. The schema export is configured (`room.schemaLocation`) but no JSON is committed yet (batch 4).
+- Room is at version 4 with migrations 1 to 2, 2 to 3 and 3 to 4. Entity changes need a version bump, a non-destructive migration and a `MigrationTest` case. The schema JSON is committed in `app/schemas` and CI fails if a build changes it, so a schema change can't merge without its JSON.
 - `workouts.routineId` is deliberately not a foreign key, so deleting a routine keeps history.
 - Backups use `format` and `schemaVersion`. Batch 1 made the reader strict. The exporter has never changed since it was added (commit `c735e04`), so every released backup matches the strict reader.
 - CI (`.github/workflows/android-ci.yml`) runs `test`, `lintDebug`, `assembleDebug` and `assembleRelease` on every push and pull request.

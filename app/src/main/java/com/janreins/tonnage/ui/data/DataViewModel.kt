@@ -8,6 +8,7 @@ import com.janreins.tonnage.data.backup.BackupContents
 import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
+import com.janreins.tonnage.data.backup.BackupTooLargeException
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
 import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HevyFormatException
@@ -164,13 +165,17 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
             _backup.value = try {
                 val contents = backups.export(settings.defaultRestSeconds.value)
                 withContext(Dispatchers.IO) {
+                    val bytes = BackupJson.encode(contents)
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
-                        it.write(BackupJson.write(contents).toByteArray())
+                        it.write(bytes)
                     } ?: throw IllegalStateException("Couldn't create the file.")
                 }
+                settings.setLastBackupAt(contents.exportedAt)
                 BackupState.Saved(contents.workouts.size)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: BackupTooLargeException) {
+                BackupState.Failed(e.message!!)
             } catch (e: Exception) {
                 BackupState.Failed("The backup couldn't be saved: ${e.message ?: e.javaClass.simpleName}")
             }
@@ -204,6 +209,9 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
                 BackupState.Restored(contents.workouts.size)
             } catch (e: WorkoutInProgressException) {
                 BackupState.Failed(e.message!!)
+            } catch (e: BackupFormatException) {
+                // Its message already says nothing was changed.
+                BackupState.Failed(e.message ?: "This backup can't be read.")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

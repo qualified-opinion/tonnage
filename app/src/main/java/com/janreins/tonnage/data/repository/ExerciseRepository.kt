@@ -18,12 +18,18 @@ class ExerciseRepository(database: AppDatabase) {
 
     fun observe(id: String): Flow<Exercise?> = dao.observeById(id)
 
-    /** Loads the bundled library on first launch. Safe to call every launch. */
-    suspend fun seedIfEmpty(context: Context) = withContext(Dispatchers.IO) {
-        if (dao.builtInCount() == 0) {
-            val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
-            dao.insertAll(ExerciseSeed.parse(json))
-        }
+    /**
+     * Adds every bundled exercise the phone doesn't have yet, so a newer app's library reaches
+     * existing installs. Rows already there (built-in or custom) are left alone. Run every launch.
+     */
+    suspend fun seedLibrary(context: Context) = withContext(Dispatchers.IO) {
+        val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
+        seedLibrary(ExerciseSeed.parse(json))
+    }
+
+    /** Inserts the built-ins in [library] whose id is missing; [ExerciseDao.insertAll] ignores the rest. */
+    internal suspend fun seedLibrary(library: List<Exercise>) = withContext(Dispatchers.IO) {
+        dao.insertAll(library.filterNot { it.isCustom })
         // Safe on every start: after the first repair this updates no rows.
         ExerciseSeed.trackingOverrides.entries.groupBy({ it.value }, { it.key }).forEach { (type, ids) ->
             importDao.repairBuiltInTracking(ids, type)

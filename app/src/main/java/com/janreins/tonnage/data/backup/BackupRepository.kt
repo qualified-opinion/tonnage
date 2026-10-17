@@ -42,9 +42,20 @@ class BackupRepository(
      */
     suspend fun restore(contents: BackupContents) = db.withTransaction {
         if (db.workoutDao().getActive() != null) throw WorkoutInProgressException()
+        // Routines and custom exercises keep their ids on restore (workouts and sets are
+        // renumbered), so a repeated or clashing id would fail halfway on a database constraint.
         val customIds = contents.customExercises.map { it.id }.toSet()
-        if (customIds.size != contents.customExercises.size) throw BackupFormatException()
+        if (customIds.size != contents.customExercises.size) {
+            throw BackupFormatException("The file has two custom exercises with the same id. Nothing was changed.")
+        }
+        val routineIds = contents.routines.map { it.routine.id }
+        if (routineIds.toSet().size != routineIds.size) {
+            throw BackupFormatException("The file has two routines with the same id. Nothing was changed.")
+        }
         val builtInIds = dao.allExercises().filterNot { it.isCustom }.map { it.id }.toSet()
+        if (customIds.any { it in builtInIds }) {
+            throw BackupFormatException("A custom exercise in the file has the same id as a built-in one. Nothing was changed.")
+        }
         val availableIds = builtInIds + customIds
         val referencedIds = contents.workouts.flatMap { w -> w.exercises.map { it.first.exerciseId } } +
             contents.routines.flatMap { r -> r.exercises.map { it.first.exerciseId } } +

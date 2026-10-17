@@ -7,6 +7,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
+import com.janreins.tonnage.data.backup.BackupTooLargeException
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
@@ -88,12 +89,15 @@ class BackupTest {
 
     private suspend fun backupOf(database: AppDatabase) = BackupRepository(database, now = { 99L }).export(defaultRestSeconds = 75)
 
-    private suspend fun assertRejectedWithoutChanges(text: String) {
+    private suspend fun assertRejectedWithoutChanges(
+        text: String,
+        message: String = "This file is incomplete or damaged. Nothing was changed.",
+    ) {
         val before = backupOf(db)
         val exercisesBefore = db.importDao().allExercises()
         val error = runCatching { BackupRepository(db).restore(BackupJson.read(text)) }.exceptionOrNull()
         assertTrue("Expected a format error for $text, got $error", error is BackupFormatException)
-        assertEquals("This file is incomplete or damaged. Nothing was changed.", error?.message)
+        assertEquals(message, error?.message)
         assertEquals(before, backupOf(db))
         assertEquals(exercisesBefore, db.importDao().allExercises())
     }
@@ -254,6 +258,35 @@ class BackupTest {
         val damaged = JSONObject(BackupJson.write(backupOf(db)))
         damaged.getJSONArray("customExercises").apply { put(getJSONObject(0)) }
         assertRejectedWithoutChanges(damaged.toString())
+    }
+
+    @Test
+    fun duplicateRoutineIdsAreRejectedBeforeDeletesWithAPlainMessage() = runTest {
+        forbidDeletes()
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.getJSONArray("routines").apply { put(JSONObject(getJSONObject(0).toString()).put("name", "Push B")) }
+        assertRejectedWithoutChanges(damaged.toString(), "The file has two routines with the same id. Nothing was changed.")
+    }
+
+    @Test
+    fun aCustomExerciseWithABuiltInIdIsRejectedBeforeDeletes() = runTest {
+        forbidDeletes()
+        val damaged = JSONObject(BackupJson.write(backupOf(db)))
+        damaged.getJSONArray("customExercises").put(JSONObject(damaged.getJSONArray("customExercises").getJSONObject(0).toString()).put("id", "bench"))
+        assertRejectedWithoutChanges(
+            damaged.toString(),
+            "A custom exercise in the file has the same id as a built-in one. Nothing was changed.",
+        )
+    }
+
+    @Test
+    fun aBackupLargerThanRestoreAcceptsIsNotWritten() = runTest {
+        val contents = backupOf(db)
+        val size = BackupJson.write(contents).toByteArray().size
+        assertEquals(size, BackupJson.encode(contents, limit = size).size)
+        val error = runCatching { BackupJson.encode(contents, limit = size - 1) }.exceptionOrNull()
+        assertTrue("Expected the size error, got $error", error is BackupTooLargeException)
+        assertEquals("Your history is too large for one backup file (the limit is 50 MB), so no file was saved.", error?.message)
     }
 
     private fun forbidDeletes() {

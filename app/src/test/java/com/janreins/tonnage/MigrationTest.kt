@@ -8,6 +8,7 @@ import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.RoutineExercise
 import com.janreins.tonnage.data.model.RoutineSet
+import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.repository.RoutineRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
@@ -87,6 +88,65 @@ class MigrationTest {
             v2.execSQL("INSERT INTO workout_exercises VALUES (1, 1, 'custom-1', 0, 90, '')")
             v2.execSQL("INSERT INTO workout_sets VALUES (1, 1, 0, 'NORMAL', 40.0, 10, NULL, NULL, NULL, 1, 1500)")
             v2.version = 2
+        }
+    }
+
+    /** Version 3: the phase 3 APK's tables (routines, workouts.routineId), with a routine and a workout started from it. */
+    private fun createVersion3() {
+        createVersion2()
+        SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READWRITE).use { v3 ->
+            v3.execSQL("ALTER TABLE `workouts` ADD COLUMN `routineId` INTEGER")
+            v3.execSQL(
+                "CREATE TABLE IF NOT EXISTS `routines` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, " +
+                    "`notes` TEXT NOT NULL, `position` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL)",
+            )
+            v3.execSQL(
+                "CREATE TABLE IF NOT EXISTS `routine_exercises` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`routineId` INTEGER NOT NULL, `exerciseId` TEXT NOT NULL, `position` INTEGER NOT NULL, " +
+                    "`restSeconds` INTEGER NOT NULL, FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) " +
+                    "ON UPDATE NO ACTION ON DELETE CASCADE)",
+            )
+            v3.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
+            v3.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_exercises_exerciseId` ON `routine_exercises` (`exerciseId`)")
+            v3.execSQL(
+                "CREATE TABLE IF NOT EXISTS `routine_sets` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`routineExerciseId` INTEGER NOT NULL, `position` INTEGER NOT NULL, `type` TEXT NOT NULL, `weightKg` REAL, " +
+                    "`reps` INTEGER, `distanceKm` REAL, `durationSec` INTEGER, FOREIGN KEY(`routineExerciseId`) " +
+                    "REFERENCES `routine_exercises`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE)",
+            )
+            v3.execSQL("CREATE INDEX IF NOT EXISTS `index_routine_sets_routineExerciseId` ON `routine_sets` (`routineExerciseId`)")
+            v3.execSQL("INSERT INTO routines VALUES (7, 'Push A', 'Heavy day', 0, 1700000000000)")
+            v3.execSQL("INSERT INTO routine_exercises VALUES (1, 7, 'custom-1', 0, 120)")
+            v3.execSQL("INSERT INTO routine_sets VALUES (1, 1, 0, 'WARMUP', 20.0, 12, NULL, NULL)")
+            v3.execSQL("INSERT INTO workouts VALUES (2, 'Push A', 500, 800, '', 'app', 7)")
+            v3.execSQL("INSERT INTO workout_exercises VALUES (2, 2, 'custom-1', 0, 120, '')")
+            v3.execSQL("INSERT INTO workout_sets VALUES (2, 2, 0, 'NORMAL', 42.5, 8, NULL, NULL, NULL, 1, 700)")
+            v3.version = 3
+        }
+    }
+
+    @Test
+    fun version3RoutinesAndHistorySurviveAndHevyMatchesWork() = runTest {
+        createVersion3()
+        val db = AppDatabase.build(context, name)
+        try {
+            assertEquals(listOf("Push", "Push A"), listOf(1L, 2L).map { db.workoutDao().getWorkout(it)!!.title })
+            assertEquals(7L, db.workoutDao().getWorkout(2)!!.routineId)
+
+            val routine = db.routineDao().getRoutine(7)!!
+            assertEquals("Push A" to "Heavy day", routine.name to routine.notes)
+            assertEquals(listOf(120), db.routineDao().getExercises(7).map { it.restSeconds })
+            val set = db.routineDao().getSets(7).single()
+            assertEquals(Triple(SetType.WARMUP, 20.0, 12), Triple(set.type, set.weightKg, set.reps))
+
+            // "Previous" prefers the routine's last workout over the later one without a routine.
+            val previous = WorkoutRepository(db.workoutDao(), db.exerciseDao()).previousSets(listOf("custom-1"), routineId = 7)
+            assertEquals(listOf(42.5 to 8), previous.getValue("custom-1").map { it.weightKg to it.reps })
+
+            db.importDao().saveMappings(listOf(HevyMapping("landmine press", "custom-1")))
+            assertEquals(listOf("custom-1"), db.importDao().mappings().map { it.exerciseId })
+        } finally {
+            db.close()
         }
     }
 

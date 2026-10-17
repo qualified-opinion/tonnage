@@ -6,6 +6,11 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.janreins.tonnage.data.backup.BackupContents
+import com.janreins.tonnage.data.backup.BackupJson
+import com.janreins.tonnage.data.model.Routine
+import com.janreins.tonnage.data.model.RoutineContents
+import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.ui.data.BackupState
 import com.janreins.tonnage.ui.data.DataViewModel
 import com.janreins.tonnage.ui.data.ImportState
@@ -25,6 +30,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.concurrent.CountDownLatch
@@ -137,6 +143,35 @@ class DataViewModelTest {
         model.openBackup(uri)
         awaitCondition { model.backupState.value is BackupState.Failed }
         assertEquals("This file is too large to be a Tonnage backup", (model.backupState.value as BackupState.Failed).message)
+    }
+
+    @Test
+    fun aRestoreRefusedByItsChecksShowsItsMessageOnce() {
+        val routine = RoutineContents(Routine(id = 5, name = "Push A"), emptyList())
+        val contents = BackupContents(1L, 90, emptyList(), emptyList(), listOf(routine, routine.copy(routine = routine.routine.copy(name = "Push B"))), emptyList())
+        val uri = Uri.parse("content://test/duplicate-routines")
+        shadowOf(application.contentResolver).registerInputStream(uri, ByteArrayInputStream(BackupJson.write(contents).toByteArray()))
+        model.openBackup(uri)
+        awaitCondition { model.backupState.value is BackupState.ConfirmRestore }
+        model.confirmRestore()
+        awaitCondition { model.backupState.value is BackupState.Failed }
+        assertEquals(
+            "The file has two routines with the same id. Nothing was changed.",
+            (model.backupState.value as BackupState.Failed).message,
+        )
+    }
+
+    @Test
+    fun savingABackupRemembersWhenItWasMade() {
+        val before = System.currentTimeMillis()
+        val uri = Uri.parse("content://test/backup-out")
+        val out = ByteArrayOutputStream()
+        shadowOf(application.contentResolver).registerOutputStream(uri, out)
+        model.saveBackup(uri)
+        awaitCondition { model.backupState.value is BackupState.Saved }
+        val saved = SettingsStore.get(application).lastBackupAt.value
+        assertTrue("Last backup time $saved should be at least $before", saved != null && saved >= before)
+        assertEquals(saved, BackupJson.read(out.toString(Charsets.UTF_8.name())).exportedAt)
     }
 
     private fun sizedStream(size: Int): InputStream = object : InputStream() {

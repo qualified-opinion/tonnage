@@ -54,6 +54,11 @@ jobs:
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             VERSION_NAME="${GITHUB_REF_NAME#v}"
           elif [ -n "$INPUT_VERSION" ]; then
+            # A published release must come from main, or it can ship code that never merged.
+            if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+              echo "::error::Publish releases from main. This run is on '${GITHUB_REF_NAME}'; leave the version blank to only build an APK."
+              exit 1
+            fi
             if ! [[ "$INPUT_VERSION" =~ ^[0-9]+(\.[0-9]+){1,2}$ ]]; then
               echo "::error::Version must look like 1.0.0, got '$INPUT_VERSION'."
               exit 1

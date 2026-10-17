@@ -48,6 +48,18 @@ jobs:
       - name: Verify release build
         run: ./gradlew assembleRelease
 
+      # The committed schema must match the entities, so every schema change lands with its JSON
+      # (and a migration test). On failure the log prints the generated file to commit.
+      - name: Check Room schemas are committed
+        run: |
+          if [ -n "$(git status --porcelain app/schemas)" ]; then
+            echo "::error::app/schemas differs from the committed files. Commit the generated schema JSON."
+            git status --porcelain app/schemas
+            git diff app/schemas
+            git ls-files --others --exclude-standard app/schemas | while read -r f; do echo "== $f"; cat "$f"; done
+            exit 1
+          fi
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

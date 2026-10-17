@@ -63,6 +63,7 @@ fun SettingsScreen(
     onDefaultRestChange: (Int) -> Unit,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    lastBackupAt: Long?,
     backupState: BackupState?,
     data: DataActions,
     modifier: Modifier = Modifier,
@@ -134,7 +135,13 @@ fun SettingsScreen(
                 },
                 leadingContent = { Icon(Icons.Filled.Save, contentDescription = null) },
                 headlineContent = { Text("Back up to a file") },
-                supportingContent = { Text("Saves your workouts, routines and custom exercises. Keep it in Drive or email it to yourself.\nA workout in progress isn't included in a backup.") },
+                supportingContent = {
+                    Text(
+                        "Saves your workouts, routines and custom exercises. Keep it in Drive or email it to yourself.\n" +
+                            "A workout in progress isn't included in a backup.\n" +
+                            Format.lastBackup(lastBackupAt, System.currentTimeMillis()),
+                    )
+                },
             )
             ListItem(
                 modifier = Modifier.clickable { openFile.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },

@@ -4,6 +4,9 @@ import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.WorkoutSet
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
+import java.time.Instant
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 object Format {
@@ -57,6 +60,20 @@ object Format {
             "%d:%02d:%02d".format(Locale.US, hours, minutes, seconds)
         } else {
             "%d:%02d".format(Locale.US, minutes, seconds)
+        }
+    }
+
+    /** "Last backup: never", "today", "yesterday" or "N days ago", by calendar day in [zone]. */
+    fun lastBackup(lastMs: Long?, nowMs: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        if (lastMs == null) return "Last backup: never"
+        val days = ChronoUnit.DAYS.between(
+            Instant.ofEpochMilli(lastMs).atZone(zone).toLocalDate(),
+            Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate(),
+        )
+        return when {
+            days <= 0 -> "Last backup: today"
+            days == 1L -> "Last backup: yesterday"
+            else -> "Last backup: $days days ago"
         }
     }
 

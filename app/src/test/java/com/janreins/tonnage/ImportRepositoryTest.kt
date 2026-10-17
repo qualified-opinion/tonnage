@@ -286,7 +286,7 @@ class ImportRepositoryTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         db.clearAllTables()
         val exercises = ExerciseRepository(db)
-        exercises.seedIfEmpty(context)
+        exercises.seedLibrary(context)
         assertEquals(1, importCsv(one()))
         val plank = workouts.observeWorkout(db.importDao().finishedWorkouts().single().id).first()!!.blocks.single()
         assertEquals(TrackingType.DURATION, plank.exercise!!.trackingType)
@@ -299,8 +299,8 @@ class ImportRepositoryTest {
         val beforeWorkouts = db.importDao().finishedWorkouts()
         val beforeBlocks = db.importDao().allWorkoutExercises()
         val beforeSets = db.importDao().allWorkoutSets()
-        exercises.seedIfEmpty(context)
-        exercises.seedIfEmpty(context)
+        exercises.seedLibrary(context)
+        exercises.seedLibrary(context)
         assertEquals(beforeExercises.map {
             if (it.id in ExerciseSeed.trackingOverrides && !it.isCustom) it.copy(trackingType = TrackingType.DURATION) else it
         }, db.importDao().allExercises())
@@ -316,7 +316,7 @@ class ImportRepositoryTest {
     fun repairDoesNotTouchACustomExerciseEvenWithAnOverrideId() = runTest {
         db.openHelper.writableDatabase.execSQL("UPDATE exercises SET isCustom = 1, trackingType = 'WEIGHT_REPS' WHERE id = 'Plank'")
         val before = db.exerciseDao().getByIds(listOf("Plank")).single()
-        ExerciseRepository(db).seedIfEmpty(ApplicationProvider.getApplicationContext())
+        ExerciseRepository(db).seedLibrary(ApplicationProvider.getApplicationContext())
         assertEquals(before, db.exerciseDao().getByIds(listOf("Plank")).single())
     }
 

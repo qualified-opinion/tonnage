@@ -40,7 +40,7 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         viewModelScope.launch {
-            repository.seedIfEmpty(application)
+            repository.seedLibrary(application)
             seeded.value = true
         }
     }

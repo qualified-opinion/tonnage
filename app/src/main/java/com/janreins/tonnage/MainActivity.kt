@@ -260,11 +260,13 @@ private fun TonnageApp() {
                     MainTab.MORE -> {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
                         val themeMode by settings.themeMode.collectAsStateWithLifecycle()
+                        val lastBackupAt by settings.lastBackupAt.collectAsStateWithLifecycle()
                         SettingsScreen(
                             defaultRestSeconds = restSeconds,
                             onDefaultRestChange = settings::setDefaultRestSeconds,
                             themeMode = themeMode,
                             onThemeModeChange = settings::setThemeMode,
+                            lastBackupAt = lastBackupAt,
                             backupState = backupState,
                             data = DataActions(
                                 onImportHevy = dataViewModel::startImport,

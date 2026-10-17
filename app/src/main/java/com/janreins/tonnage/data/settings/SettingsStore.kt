@@ -37,6 +37,15 @@ class SettingsStore internal constructor(context: Context) {
         _themeMode.value = mode
     }
 
+    private val _lastBackupAt = MutableStateFlow(prefs.getLong(KEY_LAST_BACKUP, 0L).takeIf { it > 0 })
+    /** When the last backup file was fully written, or null if there hasn't been one. */
+    val lastBackupAt: StateFlow<Long?> = _lastBackupAt.asStateFlow()
+
+    fun setLastBackupAt(timeMs: Long) {
+        prefs.edit { putLong(KEY_LAST_BACKUP, timeMs) }
+        _lastBackupAt.value = timeMs
+    }
+
     /** Kept separate from the device zone so travelling cannot change imported identities. */
     val hevyImportZone: String? get() = prefs.getString(KEY_HEVY_ZONE, null)
 
@@ -50,6 +59,7 @@ class SettingsStore internal constructor(context: Context) {
         private const val KEY_REST = "default_rest_seconds"
         private const val KEY_HEVY_ZONE = "hevy_import_zone"
         private const val KEY_THEME = "theme_mode"
+        private const val KEY_LAST_BACKUP = "last_backup_at"
 
         @Volatile
         private var instance: SettingsStore? = null
