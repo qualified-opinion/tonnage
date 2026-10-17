@@ -2,7 +2,7 @@
 
 This file is the single place to learn what is done, what is next, and how work on Tonnage is run. Any agent or person can take over from here. Keep it current: every batch PR updates the status table below.
 
-**Last updated:** 2026-10-17, after batch 1 merged (`main` at `fddc9b5`). Batch 2 is in progress.
+**Last updated:** 2026-10-17, after batch 1 merged (`main` at `fddc9b5`) and the docs PR #15 merged (`773be9e`). Batch 2 is in review as PR #14.
 
 ## What Tonnage is
 A private, offline strength logger for Android (a Hevy replacement with no social features), built with Kotlin, Compose, Material 3 and Room. Weights are stored in kg, and the owner uses kg. There is no `INTERNET` permission, no analytics and no cloud sync, and none of that changes. Architecture and conventions are in `AGENTS.md`. Read it first.
@@ -12,7 +12,7 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 | Batch | Branch | Scope | Status |
 |---|---|---|---|
 | 1. Backup and restore safety | `fix/backup-restore-safety` | T01 to T04, T13 | Merged (PR #13, `fddc9b5`). Not yet tried on a phone. |
-| 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | In progress (Codex building). Pack: `handoffs/batch2-hevy-import-fidelity.md` |
+| 2. Hevy import fidelity and bounded reads | `fix/hevy-import-fidelity` | T05 to T08, T15, T17, Hevy side of T02 | In review (PR #14, approved by Kiln, merging after CI). Pack: `handoffs/batch2-hevy-import-fidelity.md` |
 | 3. Workout and timer lifecycle | not started | see below | Needs a handoff pack and the owner's go |
 | 4. Statistics, schemas and CI | not started | see below | Needs a handoff pack and the owner's go |
 
@@ -65,7 +65,7 @@ The coordination room is the "Coding" group chat in Grok Bot (Jan, Atlas, Kiln, 
 ## Open verification
 Nothing below has been checked on a real phone:
 - A real backup and restore of the owner's data (batch 1).
-- A Hevy re-import after batch 2 ships.
+- A Hevy re-import after batch 2 ships, including a workout renamed in History and the time-zone line in the preview.
 - The R8 release build at runtime, and rest timer behaviour under Doze and OEM battery savers.
 
 ## Facts a new owner needs
