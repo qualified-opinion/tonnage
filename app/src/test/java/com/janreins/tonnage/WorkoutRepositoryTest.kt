@@ -234,6 +234,91 @@ class WorkoutRepositoryTest {
     }
 
     @Test
+    fun tickingABlankSetFillsItFromLastTime() = runTest {
+        finishBench(null, Triple(80.0, 8, true))
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val previous = workouts.previousSets(listOf("bench"), routineId = null).getValue("bench")
+        val set = active().blocks.single().sets.single()
+
+        assertTrue(workouts.complete(set.id, TrackingType.WEIGHT_REPS, previous.getOrNull(0)))
+
+        val ticked = active().blocks.single().sets.single()
+        assertTrue(ticked.completed)
+        assertEquals(80.0, ticked.weightKg!!, 0.0)
+        assertEquals(8, ticked.reps)
+    }
+
+    @Test
+    fun tickingABlankSetWithNoPreviousIsIgnored() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val set = active().blocks.single().sets.single()
+
+        assertFalse(workouts.complete(set.id, TrackingType.WEIGHT_REPS, previous = null))
+        assertFalse(active().blocks.single().sets.single().completed)
+    }
+
+    @Test
+    fun tickingAFilledSetKeepsWhatWasTyped() = runTest {
+        finishBench(null, Triple(80.0, 8, true))
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val previous = workouts.previousSets(listOf("bench"), routineId = null).getValue("bench").single()
+        val set = active().blocks.single().sets.single()
+        workouts.setWeight(set.id, 85.0)
+
+        assertTrue(workouts.complete(set.id, TrackingType.WEIGHT_REPS, previous))
+
+        val ticked = active().blocks.single().sets.single()
+        assertEquals(85.0, ticked.weightKg!!, 0.0)
+        assertNull(ticked.reps)
+    }
+
+    @Test
+    fun finishingDropsBlankTickedSets() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), restSeconds = 90)
+        val block = active().blocks.single()
+        val filled = block.sets.single()
+        workouts.setWeight(filled.id, 60.0)
+        workouts.setReps(filled.id, 10)
+        workouts.setCompleted(filled.id, true)
+        // A blank set ticked directly, as older versions allowed.
+        workouts.addSet(block.workoutExercise.id)
+        val blank = active().blocks.single().sets[1]
+        workouts.setWeight(blank.id, null)
+        workouts.setReps(blank.id, null)
+        workouts.setCompleted(blank.id, true)
+
+        workouts.finish(id)
+
+        assertEquals(1, workouts.observeHistory().first().single().setCount)
+    }
+
+    @Test
+    fun tickingFilledSetsTicksExactlyTheFilledOnes() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench", "squat"), restSeconds = 90)
+        var blocks = active().blocks
+        val benchSet = blocks[0].sets.single()
+        workouts.setWeight(benchSet.id, 70.0)
+        workouts.setReps(benchSet.id, 8)
+        workouts.addSet(blocks[0].workoutExercise.id)
+        val squatSet = blocks[1].sets.single()
+        workouts.setReps(squatSet.id, 5)
+        workouts.addSet(blocks[1].workoutExercise.id)
+        val emptySquat = active().blocks[1].sets[1]
+        workouts.setReps(emptySquat.id, null)
+
+        assertEquals(3, workouts.completeFilled(active().blocks))
+
+        blocks = active().blocks
+        assertEquals(listOf(true, true), blocks[0].sets.map { it.completed })
+        assertEquals(listOf(true, false), blocks[1].sets.map { it.completed })
+    }
+
+    @Test
     fun exercisesCanBeMovedUpAndDown() = runTest {
         val id = workouts.startEmpty()
         workouts.addExercises(id, listOf("bench", "squat"), restSeconds = 90)

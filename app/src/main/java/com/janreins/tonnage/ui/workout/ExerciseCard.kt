@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -42,14 +43,23 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.Format
+import com.janreins.tonnage.domain.SetInput
 import com.janreins.tonnage.domain.WorkoutStats
 
 /** What the set row edits for each way of logging an exercise. */
 private enum class Field(val header: String, val placeholder: String, val kind: CellKind) {
-    WEIGHT("KG", "0", CellKind.DECIMAL),
-    REPS("REPS", "0", CellKind.INTEGER),
-    DISTANCE("KM", "0", CellKind.DECIMAL),
+    WEIGHT("KG", "0", CellKind.WEIGHT),
+    REPS("REPS", "0", CellKind.REPS),
+    DISTANCE("KM", "0", CellKind.DISTANCE),
     TIME("TIME", "0:00", CellKind.DURATION),
+}
+
+/** How a set's stored value for [field] reads in its cell. */
+private fun cellText(field: Field, set: WorkoutSet): String = when (field) {
+    Field.WEIGHT -> Format.number(set.weightKg)
+    Field.REPS -> set.reps?.toString() ?: ""
+    Field.DISTANCE -> Format.number(set.distanceKm)
+    Field.TIME -> set.durationSec?.let { Format.duration(it * 1000L) } ?: ""
 }
 
 private fun fieldsFor(type: TrackingType): List<Field> = when (type) {
@@ -89,6 +99,7 @@ fun ExerciseCard(
 ) {
     val fields = fieldsFor(block.trackingType)
     val labels = WorkoutStats.setLabels(block.sets)
+    var confirmRemove by remember { mutableStateOf(false) }
     Column(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -114,7 +125,15 @@ fun ExerciseCard(
                     }
                     DropdownMenuItem(
                         text = { Text("Remove exercise", color = MaterialTheme.colorScheme.error) },
-                        onClick = { menu = false; onRemove() },
+                        onClick = {
+                            menu = false
+                            // Only ask when removing would throw away something logged.
+                            if (block.sets.any { it.completed || SetInput.isFilled(it, block.trackingType) }) {
+                                confirmRemove = true
+                            } else {
+                                onRemove()
+                            }
+                        },
                     )
                 }
             }
@@ -152,6 +171,20 @@ fun ExerciseCard(
             Text("Add set")
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+    }
+    if (confirmRemove) {
+        val sets = if (block.sets.size == 1) "its set" else "its ${block.sets.size} sets"
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Remove ${block.name}?") },
+            text = { Text("This also deletes $sets, including the numbers you've entered.") },
+            confirmButton = {
+                TextButton(onClick = { confirmRemove = false; onRemove() }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Keep") } },
+        )
     }
 }
 
@@ -201,6 +234,8 @@ private fun SetRow(
     showCheck: Boolean,
 ) {
     val colors = MaterialTheme.colorScheme
+    // Tapping "previous" pushes its numbers into the cells, even one that is being typed in.
+    var fill by remember(set.id) { mutableStateOf<Pair<Int, WorkoutSet>?>(null) }
     val rowColor = if (set.completed) colors.primaryContainer.copy(alpha = 0.45f) else colors.surface
     Row(
         Modifier
@@ -224,7 +259,10 @@ private fun SetRow(
                     .weight(PREVIOUS_WEIGHT)
                     .then(
                         if (previous != null && text.isNotEmpty()) {
-                            Modifier.clickable(onClickLabel = "Use previous values") { onUsePrevious(set, previous) }
+                            Modifier.clickable(onClickLabel = "Use previous values") {
+                                fill = ((fill?.first ?: 0) + 1) to previous
+                                onUsePrevious(set, previous)
+                            }
                         } else {
                             Modifier
                         },
@@ -235,12 +273,7 @@ private fun SetRow(
         fields.forEach { field ->
             SetNumberCell(
                 key = set.id,
-                initial = when (field) {
-                    Field.WEIGHT -> Format.number(set.weightKg)
-                    Field.REPS -> set.reps?.toString() ?: ""
-                    Field.DISTANCE -> Format.number(set.distanceKm)
-                    Field.TIME -> set.durationSec?.let { Format.duration(it * 1000L) } ?: ""
-                },
+                initial = cellText(field, set),
                 placeholder = field.placeholder,
                 kind = field.kind,
                 onChange = { text ->
@@ -252,6 +285,7 @@ private fun SetRow(
                     }
                 },
                 modifier = Modifier.weight(1f),
+                fill = fill?.let { (id, from) -> CellFill(id, cellText(field, from)) },
             )
         }
         if (showCheck) {

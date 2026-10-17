@@ -184,11 +184,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch { repository.setDuration(set.id, seconds) }
     }
 
-    /** Ticks a set off (starting the rest timer) or un-ticks it. */
+    /**
+     * Ticks a set off (starting the rest timer) or un-ticks it. A blank set is filled from last
+     * time's set at the same position; with nothing to fill it from, the tick is ignored.
+     */
     fun toggleCompleted(block: ExerciseBlock, set: WorkoutSet) {
-        val completing = !set.completed
-        viewModelScope.launch { repository.setCompleted(set.id, completing) }
-        if (completing) {
+        if (set.completed) {
+            viewModelScope.launch { repository.setCompleted(set.id, false) }
+            return
+        }
+        val index = block.sets.indexOfFirst { it.id == set.id }
+        val last = previous.value[block.workoutExercise.exerciseId]?.getOrNull(index)
+        viewModelScope.launch {
+            if (!repository.complete(set.id, block.trackingType, last)) return@launch
             val blocks = active.value?.blocks.orEmpty().map { b ->
                 if (b.workoutExercise.id == block.workoutExercise.id) {
                     b.copy(sets = b.sets.map { if (it.id == set.id) it.copy(completed = true) else it })
@@ -221,6 +229,17 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val workout = active.value?.workout ?: return
         viewModelScope.launch {
             repository.finish(workout.id)
+            endSession()
+            onSaved()
+        }
+    }
+
+    /** Ticks every filled set that wasn't ticked, then saves the workout. */
+    fun completeFilledAndFinish(onSaved: () -> Unit) {
+        val current = active.value ?: return
+        viewModelScope.launch {
+            repository.completeFilled(current.blocks)
+            repository.finish(current.workout.id)
             endSession()
             onSaved()
         }
