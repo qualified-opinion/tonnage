@@ -15,6 +15,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,7 +36,8 @@ enum class CellKind(val keyboardType: KeyboardType, val allowed: (Char) -> Boole
 /**
  * A compact number box for a set. It keeps its own text while you type (so "62." isn't
  * reformatted mid-entry) and reports every change; [key] resets it for a different set.
- * When it isn't focused it follows [initial], so values filled in from elsewhere show up.
+ * When it isn't focused it follows [initial], so values filled in from elsewhere show up, and
+ * leaving it shows the saved value again (a time typed as "130" then reads "1:30").
  */
 @Composable
 fun SetNumberCell(
@@ -48,6 +50,7 @@ fun SetNumberCell(
 ) {
     var text by remember(key) { mutableStateOf(initial) }
     var focused by remember { mutableStateOf(false) }
+    val saved by rememberUpdatedState(initial)
     LaunchedEffect(initial) {
         if (!focused) text = initial
     }
@@ -59,7 +62,10 @@ fun SetNumberCell(
             text = filtered
             onChange(filtered)
         },
-        modifier = modifier.height(40.dp).onFocusChanged { focused = it.isFocused },
+        modifier = modifier.height(40.dp).onFocusChanged {
+            if (focused && !it.isFocused) text = saved
+            focused = it.isFocused
+        },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = colors.onSurface,

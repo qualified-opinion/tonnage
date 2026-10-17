@@ -25,9 +25,18 @@ object Format {
 
     fun parseInt(text: String): Int? = text.trim().toIntOrNull()?.takeIf { it >= 0 }
 
-    /** "1:30" or "90" -> 90 seconds; "1:02:03" -> 3723. */
+    /**
+     * "1:30" or "90" -> 90 seconds; "1:02:03" -> 3723. Plain digits fill from the right like a
+     * stopwatch, because the number pad has no colon: "45" is 45 s, "130" is 1:30, "10000" is 1:00:00.
+     */
     fun parseDuration(text: String): Int? {
-        val parts = text.trim().split(':')
+        val trimmed = text.trim()
+        if (trimmed.length > 2 && trimmed.all { it.isDigit() }) {
+            if (trimmed.length > 6) return null
+            val padded = trimmed.padStart(6, '0')
+            return parseDuration("${padded.substring(0, 2)}:${padded.substring(2, 4)}:${padded.substring(4)}")
+        }
+        val parts = trimmed.split(':')
         if (parts.any { it.isEmpty() && parts.size > 1 }) return null
         val numbers = parts.map { it.toIntOrNull()?.takeIf { n -> n >= 0 } ?: return null }
         return when (numbers.size) {
