@@ -9,6 +9,13 @@ import org.json.JSONObject
 object ExerciseSeed {
     const val ASSET_NAME = "exercises.json"
 
+    // Only unambiguous holds present in the bundled library. Dynamic plank/bridge exercises
+    // (for example Push Up to Side Plank) intentionally keep repetition tracking.
+    val trackingOverrides = mapOf(
+        "Plank" to TrackingType.DURATION,
+        "Side_Bridge" to TrackingType.DURATION,
+    )
+
     fun parse(json: String): List<Exercise> {
         val array = JSONArray(json)
         return (0 until array.length()).map { fromJson(array.getJSONObject(it)) }
@@ -26,7 +33,7 @@ object ExerciseSeed {
             secondaryMuscles = Exercise.joinList(obj.stringList("secondaryMuscles")),
             mechanic = obj.optStringOrEmpty("mechanic"),
             instructions = obj.stringList("instructions").joinToString("\n"),
-            trackingType = trackingTypeFor(category, equipment),
+            trackingType = trackingOverrides[obj.getString("id")] ?: trackingTypeFor(category, equipment),
         )
     }
 

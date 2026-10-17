@@ -9,7 +9,13 @@ import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
+import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HevyFormatException
+import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
+import com.janreins.tonnage.data.hevy.BACKUP_TOO_LARGE
+import com.janreins.tonnage.data.hevy.HEVY_BYTE_LIMIT
+import com.janreins.tonnage.data.hevy.HEVY_TOO_LARGE
+import com.janreins.tonnage.data.hevy.readBoundedText
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.repository.ExerciseChoice
@@ -17,7 +23,11 @@ import com.janreins.tonnage.data.repository.ImportPlan
 import com.janreins.tonnage.data.repository.ImportRepository
 import com.janreins.tonnage.data.repository.ImportResult
 import com.janreins.tonnage.data.settings.SettingsStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -51,9 +61,9 @@ sealed interface BackupState {
 /** Hevy import plus JSON backup and restore: the More tab's data tools. */
 class DataViewModel(application: Application) : AndroidViewModel(application) {
     private val db = AppDatabase.getInstance(application)
-    private val importer = ImportRepository(db)
-    private val backups = BackupRepository(db)
     private val settings = SettingsStore.get(application)
+    private val importer = ImportRepository(db, settings)
+    private val backups = BackupRepository(db)
 
     val library: StateFlow<Map<String, Exercise>> = db.exerciseDao().observeAll()
         .map { all -> all.associateBy { it.id } }
@@ -69,23 +79,40 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
     private val _backup = MutableStateFlow<BackupState?>(null)
     val backupState: StateFlow<BackupState?> = _backup.asStateFlow()
 
-    private fun readText(uri: Uri): String =
-        getApplication<Application>().contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() }
-            ?: throw IllegalStateException("Couldn't open the file.")
+    private suspend fun readText(uri: Uri, limit: Int, tooLargeMessage: String): String {
+        val context = currentCoroutineContext()
+        return getApplication<Application>().contentResolver.openInputStream(uri)?.use {
+            readBoundedText(it, limit, tooLargeMessage) { context.ensureActive() }
+        } ?: throw IllegalStateException("Couldn't open the file.")
+    }
 
     // Hevy import
 
+    private var importReadJob: Job? = null
+    private var importOperationId = 0L
+
     fun startImport(uri: Uri) {
+        if (_import.value is ImportState.Importing) return
+        val operationId = ++importOperationId
+        importReadJob?.cancel()
+        _picking.value = null
         _import.value = ImportState.Reading
-        viewModelScope.launch {
-            _import.value = try {
-                val plan = withContext(Dispatchers.IO) { importer.prepare(readText(uri)) }
+        importReadJob = viewModelScope.launch {
+            val state = try {
+                val plan = withContext(Dispatchers.IO) {
+                    importer.prepare(readText(uri, HEVY_BYTE_LIMIT, HEVY_TOO_LARGE))
+                }
                 ImportState.Ready(plan, plan.defaultChoices(), reviewing = plan.matches.any { it.confidence.needsReview })
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: FileTooLargeException) {
+                ImportState.Failed(e.message!!)
             } catch (e: HevyFormatException) {
                 ImportState.Failed(e.message ?: "This file couldn't be read.")
             } catch (e: Exception) {
                 ImportState.Failed("This file couldn't be read: ${e.message ?: e.javaClass.simpleName}")
             }
+            if (operationId == importOperationId) _import.value = state
         }
     }
 
@@ -112,6 +139,8 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _import.value = try {
                 ImportState.Done(importer.import(ready.plan, ready.choices, settings.defaultRestSeconds.value))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 ImportState.Failed("The import failed and nothing was saved: ${e.message ?: e.javaClass.simpleName}")
             }
@@ -120,6 +149,9 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
 
     fun closeImport() {
         if (_import.value is ImportState.Importing) return
+        ++importOperationId
+        importReadJob?.cancel()
+        importReadJob = null
         _import.value = null
         _picking.value = null
     }
@@ -137,6 +169,8 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
                     } ?: throw IllegalStateException("Couldn't create the file.")
                 }
                 BackupState.Saved(contents.workouts.size)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 BackupState.Failed("The backup couldn't be saved: ${e.message ?: e.javaClass.simpleName}")
             }
@@ -147,9 +181,13 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
         _backup.value = BackupState.Working
         viewModelScope.launch {
             _backup.value = try {
-                BackupState.ConfirmRestore(withContext(Dispatchers.IO) { BackupJson.read(readText(uri)) })
+                BackupState.ConfirmRestore(withContext(Dispatchers.IO) { BackupJson.read(readText(uri, BACKUP_BYTE_LIMIT, BACKUP_TOO_LARGE)) })
+            } catch (e: FileTooLargeException) {
+                BackupState.Failed(e.message!!)
             } catch (e: BackupFormatException) {
                 BackupState.Failed(e.message ?: "This backup can't be read.")
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 BackupState.Failed("This file couldn't be read: ${e.message ?: e.javaClass.simpleName}")
             }
@@ -166,6 +204,8 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
                 BackupState.Restored(contents.workouts.size)
             } catch (e: WorkoutInProgressException) {
                 BackupState.Failed(e.message!!)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 BackupState.Failed("The restore failed and nothing was changed: ${e.message ?: e.javaClass.simpleName}")
             }

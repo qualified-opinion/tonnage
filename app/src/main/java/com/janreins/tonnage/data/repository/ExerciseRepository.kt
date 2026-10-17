@@ -1,7 +1,7 @@
 package com.janreins.tonnage.data.repository
 
 import android.content.Context
-import com.janreins.tonnage.data.local.ExerciseDao
+import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.local.ExerciseSeed
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.TrackingType
@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-class ExerciseRepository(private val dao: ExerciseDao) {
+class ExerciseRepository(database: AppDatabase) {
+    private val dao = database.exerciseDao()
+    private val importDao = database.importDao()
 
     fun observeAll(): Flow<List<Exercise>> = dao.observeAll()
 
@@ -18,9 +20,14 @@ class ExerciseRepository(private val dao: ExerciseDao) {
 
     /** Loads the bundled library on first launch. Safe to call every launch. */
     suspend fun seedIfEmpty(context: Context) = withContext(Dispatchers.IO) {
-        if (dao.builtInCount() > 0) return@withContext
-        val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
-        dao.insertAll(ExerciseSeed.parse(json))
+        if (dao.builtInCount() == 0) {
+            val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
+            dao.insertAll(ExerciseSeed.parse(json))
+        }
+        // Safe on every start: after the first repair this updates no rows.
+        ExerciseSeed.trackingOverrides.entries.groupBy({ it.value }, { it.key }).forEach { (type, ids) ->
+            importDao.repairBuiltInTracking(ids, type)
+        }
     }
 
     suspend fun addCustom(

@@ -29,7 +29,7 @@ class ExerciseDaoTest {
     @Before
     fun setUp() {
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
-        repository = ExerciseRepository(db.exerciseDao())
+        repository = ExerciseRepository(db)
     }
 
     @After
@@ -44,6 +44,14 @@ class ExerciseDaoTest {
         val all = repository.observeAll().first()
         assertEquals(877, all.size)
         assertTrue(all.any { it.id == custom.id && it.isCustom })
+    }
+
+    @Test
+    fun seedingRepairsTheInjectedDatabase() = runTest {
+        repository.seedIfEmpty(context)
+        db.openHelper.writableDatabase.execSQL("UPDATE exercises SET trackingType = 'BODYWEIGHT_REPS' WHERE id = 'Plank'")
+        repository.seedIfEmpty(context)
+        assertEquals(TrackingType.DURATION, db.exerciseDao().getByIds(listOf("Plank")).single().trackingType)
     }
 
     @Test

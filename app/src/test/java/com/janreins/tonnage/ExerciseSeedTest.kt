@@ -45,4 +45,16 @@ class ExerciseSeedTest {
         assertEquals(TrackingType.DURATION, ExerciseSeed.trackingTypeFor("stretching", "body only"))
         assertEquals(TrackingType.DISTANCE_DURATION, ExerciseSeed.trackingTypeFor("cardio", "machine"))
     }
+    @Test
+    fun onlyTheSelectedBuiltInHoldsOverrideDefaultTracking() {
+        val byId = exercises.associateBy { it.id }
+        assertEquals(setOf("Plank", "Side_Bridge"), ExerciseSeed.trackingOverrides.keys)
+        ExerciseSeed.trackingOverrides.forEach { (id, type) ->
+            assertEquals(TrackingType.DURATION, type)
+            assertEquals(type, byId.getValue(id).trackingType)
+        }
+        assertEquals(TrackingType.BODYWEIGHT_REPS, byId.getValue("Push_Up_to_Side_Plank").trackingType)
+        assertEquals(TrackingType.BODYWEIGHT_REPS, byId.getValue("Butt_Lift_Bridge").trackingType)
+    }
+
 }

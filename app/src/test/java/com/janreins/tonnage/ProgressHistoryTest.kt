@@ -39,7 +39,7 @@ class ProgressHistoryTest {
         db.exerciseDao().insertAll(
             ExerciseSeed.parse(context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }),
         )
-        val importer = ImportRepository(db)
+        val importer = ImportRepository(db, com.janreins.tonnage.data.settings.SettingsStore(context))
         val plan = importer.prepare(javaClass.getResource("/hevy_sample.csv")!!.readText())
         importer.import(plan, plan.defaultChoices(), restSeconds = 90)
     }
