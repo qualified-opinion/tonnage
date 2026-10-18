@@ -1,3 +1,5 @@
+> **Superseded on 2026-10-18.** This batch is split into GitHub issues #33 (service and silent rests), #34 (rest survives process death) and #32 (accessibility), which carry the current spec and corrections from `reviews/claude-review-4.md`. Kept for history.
+
 # Tonnage batch 6: timer and service lifecycle
 
 **Repo:** qualified-opinion/tonnage

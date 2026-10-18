@@ -1,5 +1,7 @@
 # Tonnage batch 5: stats and speed
 
+> **Superseded on 2026-10-18.** This batch is split into GitHub issues #29 (records), #30 (speed) and #31 (week rollover), which carry the current spec and corrections from `reviews/claude-review-4.md`. Kept for history.
+
 **Repo:** qualified-opinion/tonnage
 **Branch:** `fix/stats-and-speed`, from the latest `main`
 **Engine:** the owner picks one agent to build; the other engine reviews, one round. Merge only after approval, green CI and the owner's OK. No tags, no releases.
