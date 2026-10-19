@@ -112,18 +112,14 @@ The review recommends not building these. Revisit only if the owner asks.
 - Cloud sync, social features and any network access. They go against the offline and private brief.
 
 ## How work is run
-1. **Plan:** Kiln (product strategist) writes a handoff pack for each batch: goal, repo and branch, scope and out-of-scope, acceptance criteria, risks and engine. Packs live in `handoffs/`.
-2. **Go:** the owner (Jan) says go for one batch.
-3. **Build:** one agent (Codex or Claude Code) builds on the named feature branch, runs `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, and opens a PR. Every fix needs a test that fails on current `main`.
-4. **Review:** a different engine than the builder checks the diff against the pack's acceptance criteria and says "approve" or "changes needed". After a fix, only the new commit is re-checked. One review round is the default.
-5. **Merge:** squash-merge, pinned to the exact commit that was approved, only when it is approved, CI is green and the owner has OK'd that PR. Anything pushed after approval needs another check.
-6. **Never:** push to `main`, force-push, create tags or releases, or add network access. Releases are published by the owner, or by Claude only when the owner asks, with the Run workflow button (see `HANDOVER.md`).
-7. **Docs:** every batch PR updates the status table here, and `AGENTS.md` when a convention changes.
-
-The coordination room is the "Coding" group chat in Grok Bot (Jan, Atlas, Kiln, Nightshift).
-
-### When the owner works alone with Claude Code or Codex
-Open the repo (Claude Code reads `CLAUDE.md`, which points to `AGENTS.md`; Codex reads `AGENTS.md`). A good first message: "Read `HANDOVER.md`, `docs/plan/ROADMAP.md` and `AGENTS.md`, then do the next not-started batch from its pack in `docs/plan/handoffs/`. Make the feature branch named in the pack, keep to its scope, add the tests it requires, run `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease`, update the status table, and open a PR. Do not merge." For review, start a fresh session (or the other tool) and say: "Review this PR against the acceptance criteria in the pack. Report blockers, should-fix and nits with file and line. Do not edit." Build with one engine and review with the other.
+Since 2026-10-19 one AI agent builds and Claude reviews; the owner merges.
+1. **Pick:** the owner gives the builder agent one issue from the work order in tracking issue #25 (or says "the next one"). Starter prompt: `docs/plan/BUILDER.md`.
+2. **Build:** the builder branches from `main`, does only that issue, adds a test that fails on the old code, and opens one PR against `main` with `Closes #NN`, using the PR template. CI must be green.
+3. **Review:** the owner pastes the PR link to Claude in the Tonnage project. Claude reviews against the issue and `docs/plan/REVIEW.md`, posts the verdict on the PR ("approve" or "changes needed", blockers first), and gives the owner a plain summary. The builder fixes comments with new commits; Claude re-checks only those.
+4. **Merge:** the owner merges once Claude approves and CI is green. The issue closes and #25 ticks itself.
+5. **Release:** only when the owner says "publish X.Y.Z" (see `HANDOVER.md`).
+6. **Never** (anyone): push to `main`, force-push a reviewed branch, tag or release without the owner, add network access, or use a destructive migration.
+7. **Docs:** builders don't edit the status table here (it caused merge conflicts); the tracking issue is the live status, and the reviewer refreshes this file every few merges. Builders still update `AGENTS.md` when a convention changes.
 
 ## Open verification
 Not yet checked on a real phone (batches 1 and 2 passed on 2026-10-17):
