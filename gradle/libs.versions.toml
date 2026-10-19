@@ -11,7 +11,7 @@ kotlin = "2.2.10"
 composeBom = "2024.09.00"
 googleDevtoolsKsp = "2.3.5"
 roomRuntime = "2.8.5"
-kotlinxCoroutines = "1.10.2"
+kotlinxCoroutines = "1.11.0"
 androidxTestCore = "1.6.1"
 robolectric = "4.16.1"
 
