@@ -45,7 +45,10 @@ class ProgressViewModelTest {
     @Before fun setUp() {
         Dispatchers.setMain(dispatcher)
         app = ApplicationProvider.getApplicationContext()
-        db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java).allowMainThreadQueries().build()
+        // Keep Room reads on the test scheduler so virtual midnight cannot overtake real IO.
+        db = Room.inMemoryDatabaseBuilder(app, AppDatabase::class.java)
+            .setQueryExecutor { it.run() }.setTransactionExecutor { it.run() }
+            .allowMainThreadQueries().build()
     }
 
     @After fun tearDown() {
