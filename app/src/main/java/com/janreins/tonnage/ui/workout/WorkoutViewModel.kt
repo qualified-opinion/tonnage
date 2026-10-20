@@ -16,6 +16,7 @@ import com.janreins.tonnage.domain.PersonalRecord
 import com.janreins.tonnage.domain.SessionSummary
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.service.WorkoutService
+import com.janreins.tonnage.service.WorkoutNotifications
 import com.janreins.tonnage.timer.RestTimer
 import com.janreins.tonnage.timer.WorkoutSession
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,9 +34,15 @@ import kotlinx.coroutines.launch
 /** Shown before saving: totals for the session and any records it set. */
 data class FinishPreview(val summary: SessionSummary, val records: List<PersonalRecord>)
 
-class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = AppDatabase.getInstance(application)
+class WorkoutViewModel @JvmOverloads constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getInstance(application),
+    private val serviceRunning: () -> Boolean = { WorkoutService.isRunning },
+    private val serviceStarter: () -> Unit = { WorkoutService.start(application) },
+    private val vibrate: () -> Unit = { WorkoutNotifications.vibrate(application) },
+) : AndroidViewModel(application) {
+    private val _notificationsAvailable = MutableStateFlow(WorkoutNotifications.restAlertsEnabled(application))
+    val notificationsAvailable = _notificationsAvailable.asStateFlow()
     private val repository = WorkoutRepository(db.workoutDao(), db.exerciseDao())
     private val routines = RoutineRepository(db.routineDao(), db.exerciseDao())
     private val settings = SettingsStore.get(application)
@@ -70,7 +77,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             if (existing != null && !WorkoutSession.confirmedInThisProcess) {
                 _pendingResume.value = existing
             } else if (existing != null) {
-                startService()
+                ensureService()
             }
             _loaded.value = true
         }
@@ -92,7 +99,19 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private fun startService() {
         WorkoutSession.confirmedInThisProcess = true
-        WorkoutService.start(getApplication())
+        serviceStarter()
+    }
+
+    /** Retry a refused start once when returning to the foreground, after a confirmed resume. */
+    fun ensureService() {
+        _notificationsAvailable.value = WorkoutNotifications.restAlertsEnabled(getApplication())
+        viewModelScope.launch {
+            if (WorkoutSession.confirmedInThisProcess && repository.getActive() != null && !serviceRunning()) serviceStarter()
+        }
+    }
+
+    fun finishRest(rest: RestTimer.State) {
+        if (RestTimer.remainingMs(rest) == 0L && RestTimer.finish(rest)) vibrate()
     }
 
     fun startEmptyWorkout() {

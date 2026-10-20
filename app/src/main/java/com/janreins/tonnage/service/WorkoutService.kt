@@ -7,9 +7,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.janreins.tonnage.timer.RestTimer
@@ -50,6 +47,7 @@ class WorkoutService : Service() {
             type,
         )
 
+        isRunning = true
         scope.launch {
             // The workout screen may publish the session info just after starting the service, so
             // only a change from a workout to none means the workout ended.
@@ -77,8 +75,7 @@ class WorkoutService : Service() {
                 val remaining = RestTimer.remainingMs(rest)
                 acquireWakeLock(remaining + WAKE_LOCK_MARGIN_MS)
                 delay(remaining)
-                onRestFinished(rest)
-                RestTimer.finish(rest)
+                if (RestTimer.finish(rest)) onRestFinished(rest)
             }
         }
     }
@@ -95,24 +92,15 @@ class WorkoutService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         releaseWakeLock()
         scope.cancel()
         super.onDestroy()
     }
 
     private fun onRestFinished(rest: RestTimer.State) {
-        vibrate()
+        WorkoutNotifications.vibrate(this)
         WorkoutNotifications.post(this, WorkoutNotifications.ID_REST_DONE, WorkoutNotifications.restDone(this, rest))
-    }
-
-    private fun vibrate() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            getSystemService(VibratorManager::class.java)?.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            getSystemService(Vibrator::class.java)
-        }
-        vibrator?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 400, 200, 400), -1))
     }
 
     private fun acquireWakeLock(timeoutMs: Long) {
@@ -136,6 +124,8 @@ class WorkoutService : Service() {
     }
 
     companion object {
+        @Volatile var isRunning = false
+            private set
         const val ACTION_ADD_15 = "com.janreins.tonnage.action.REST_ADD_15"
         const val ACTION_SKIP = "com.janreins.tonnage.action.REST_SKIP"
         private const val WAKE_LOCK_MARGIN_MS = 10_000L

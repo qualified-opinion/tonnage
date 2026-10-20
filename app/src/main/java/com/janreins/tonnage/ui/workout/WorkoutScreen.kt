@@ -1,10 +1,5 @@
 package com.janreins.tonnage.ui.workout
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -62,7 +57,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
+import android.content.Intent
+import android.provider.Settings
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.tonnage.data.model.RoutineSummary
 import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.repository.ActiveWorkout
@@ -121,17 +118,6 @@ private fun StartWorkout(
     actions: RoutineListActions,
     modifier: Modifier,
 ) {
-    val context = LocalContext.current
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
-    // The rest timer and ongoing-workout notification need this on Android 13+.
-    val withNotifications: (() -> Unit) -> Unit = { start ->
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
-            permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        start()
-    }
     var deleting by remember { mutableStateOf<RoutineSummary?>(null) }
 
     Scaffold(
@@ -146,7 +132,7 @@ private fun StartWorkout(
         ) {
             item {
                 Button(
-                    onClick = { withNotifications(onStartEmpty) },
+                    onClick = onStartEmpty,
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null)
@@ -184,7 +170,7 @@ private fun StartWorkout(
             items(routines, key = { it.routine.id }) { summary ->
                 RoutineCard(
                     summary = summary,
-                    onStart = { withNotifications { actions.onStart(summary.routine.id) } },
+                    onStart = { actions.onStart(summary.routine.id) },
                     onEdit = { actions.onEdit(summary.routine.id) },
                     onDuplicate = { actions.onDuplicate(summary.routine.id) },
                     onDelete = { deleting = summary },
@@ -316,11 +302,18 @@ private fun ActiveWorkoutScreen(
         },
         bottomBar = {
             if (rest != null) {
-                RestTimerBar(rest, onAdjust = viewModel::adjustRest, onSkip = viewModel::skipRest)
+                RestTimerBar(rest, onFinish = viewModel::finishRest, onAdjust = viewModel::adjustRest, onSkip = viewModel::skipRest)
             }
         },
     ) { padding ->
+        val notificationsAvailable by viewModel.notificationsAvailable.collectAsStateWithLifecycle()
+        val context = LocalContext.current
         LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item {
+                RestNotificationNotice(notificationsAvailable) {
+                    context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                }
+            }
             itemsIndexed(active.blocks, key = { _, block -> block.workoutExercise.id }) { index, block ->
                 ExerciseCard(
                     block = block,
@@ -380,7 +373,7 @@ private fun WorkoutSubtitle(active: ActiveWorkout) {
 }
 
 @Composable
-private fun RestTimerBar(rest: RestTimer.State, onAdjust: (Int) -> Unit, onSkip: () -> Unit) {
+private fun RestTimerBar(rest: RestTimer.State, onFinish: (RestTimer.State) -> Unit, onAdjust: (Int) -> Unit, onSkip: () -> Unit) {
     var now by remember { mutableLongStateOf(RestTimer.clock()) }
     LaunchedEffect(rest) {
         while (true) {
@@ -391,7 +384,7 @@ private fun RestTimerBar(rest: RestTimer.State, onAdjust: (Int) -> Unit, onSkip:
     // The service normally ends the rest; this is a fallback if it isn't running.
     LaunchedEffect(rest) {
         delay(RestTimer.remainingMs(rest) + 3000)
-        RestTimer.finish(rest)
+        onFinish(rest)
     }
     val remaining = RestTimer.remainingMs(rest, now)
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, tonalElevation = 3.dp) {
@@ -533,5 +526,15 @@ fun RecordLine(record: PersonalRecord) {
             "${record.exerciseName}: ${record.kind.label.lowercase()} ${value(record.value)} (was ${value(record.previous)})",
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+@Composable
+internal fun RestNotificationNotice(enabled: Boolean, onSettings: () -> Unit) {
+    if (!enabled) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Rest notifications are off", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onSettings) { Text("Notification settings") }
+        }
     }
 }
