@@ -26,6 +26,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -152,17 +154,19 @@ fun ExerciseCard(
             }
         }
         block.sets.forEachIndexed { index, set ->
-            SetRow(
-                set = set,
-                label = labels[index],
-                fields = fields,
-                actions = actions,
-                showPrevious = previous != null,
-                previous = previous?.getOrNull(index),
-                trackingType = block.trackingType,
-                onUsePrevious = onUsePrevious,
-                showCheck = showCheck,
-            )
+            key(set.id) {
+                SetRow(
+                    set = set,
+                    label = labels[index],
+                    fields = fields,
+                    actions = actions,
+                    showPrevious = previous != null,
+                    previous = previous?.getOrNull(index),
+                    trackingType = block.trackingType,
+                    onUsePrevious = onUsePrevious,
+                    showCheck = showCheck,
+                )
+            }
         }
         TextButton(onClick = onAddSet, modifier = Modifier.padding(horizontal = 8.dp)) {
             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -235,6 +239,10 @@ private fun SetRow(
     val colors = MaterialTheme.colorScheme
     // Tapping "previous" pushes its numbers into the cells, even one that is being typed in.
     var fill by remember(set.id) { mutableStateOf<Pair<Int, WorkoutSet>?>(null) }
+    // A tick may fill an empty set from last time. Push the saved values even into focused cells.
+    LaunchedEffect(set.completed) {
+        if (set.completed) fill = ((fill?.first ?: 0) + 1) to set
+    }
     val rowColor = if (set.completed) colors.primaryContainer.copy(alpha = 0.45f) else colors.surface
     Row(
         Modifier

@@ -77,4 +77,30 @@ class SetInputTest {
         val stored = Format.parseDuration("130")!!
         assertEquals("1:30", Format.duration(stored * 1000L))
     }
+    @Test
+    fun malformedColonTimesKeepThePreviousValue() {
+        listOf("1:2:3:4", "1:", "2::", ":", "invalid", "1:3045", "1:60", "1:60:00", "1:00:60", "1:000").forEach { input ->
+            assertNull(input, SetInput.accept(Kind.DURATION, "1:30", input))
+        }
+        assertEquals("1:30:45", SetInput.accept(Kind.DURATION, "1:30", "1:30:45"))
+        assertEquals("130", SetInput.accept(Kind.DURATION, "13", "130"))
+        assertEquals("", SetInput.accept(Kind.DURATION, "1:30", ""))
+        // Ordinary number-pad entry, one keystroke at a time, still works.
+        listOf("1", "13", "130").fold("") { current, input ->
+            SetInput.accept(Kind.DURATION, current, input)!!.also { assertEquals(input, it) }
+        }
+    }
+
+    @Test
+    fun unicodeDecimalDigitsAreSavedAsAsciiForEveryCell() {
+        assertEquals("60", SetInput.accept(Kind.WEIGHT, "", "٦٠"))
+        assertEquals(60.0, Format.parseDecimal(SetInput.accept(Kind.WEIGHT, "", "٦٠")!!)!!, 0.0)
+        assertEquals("62.5", SetInput.accept(Kind.WEIGHT, "", "۶۲.۵"))
+        assertEquals("12", SetInput.accept(Kind.REPS, "", "１２"))
+        assertEquals("5,5", SetInput.accept(Kind.DISTANCE, "", "٥,٥"))
+        assertEquals("1:30", SetInput.accept(Kind.DURATION, "", "١:٣٠"))
+        assertEquals("130", SetInput.accept(Kind.DURATION, "", "۱۳۰"))
+        // Mathematical bold digits are decimal digits outside the BMP.
+        assertEquals("60", SetInput.accept(Kind.WEIGHT, "", "𝟔𝟎"))
+    }
 }
