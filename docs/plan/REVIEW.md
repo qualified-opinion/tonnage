@@ -20,4 +20,4 @@ A push after a verdict needs another look at the new commits.
 9. **PR text.** The template sections are filled in plainly enough for the owner, and "Not tested here" is honest.
 
 ## After merge
-The tracking issue #25 checklist ticks itself. Every few merges, the reviewer updates the status table in `docs/plan/ROADMAP.md` and suggests a release when there's something worth testing on the phone.
+The reviewer ticks the issue off in the tracking issue #25 checklist (GitHub closes the issue but doesn't tick the box). Every few merges, the reviewer updates the status table in `docs/plan/ROADMAP.md` and suggests a release when there's something worth testing on the phone.
