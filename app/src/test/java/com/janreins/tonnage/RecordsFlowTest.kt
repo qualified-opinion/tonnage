@@ -78,7 +78,7 @@ class RecordsFlowTest {
         assertTrue(worker.startsWith("DefaultDispatcher"))
     }
 
-    @Test fun twentyThousandSetGuardKeepsTheSameRecords() = runBlocking {
+    @Test fun twentyThousandSetGuardKeepsTheSameRecords() = runBlocking<Unit> {
         val rows = (0 until 20_000).map { i ->
             val workout = i / 20 + 1L
             RecordSet(workout, workout * 86_400_000, "exercise-${i % 3}", "Exercise ${i % 3}",
@@ -90,7 +90,7 @@ class RecordsFlowTest {
         assertEquals(expected, actual)
         assertTrue(actual.isNotEmpty())
         File("build/reports/records-guard.txt").apply {
-            parentFile.mkdirs()
+            requireNotNull(parentFile).mkdirs()
             appendText("sets=${rows.size} records=${actual.values.sumOf { it.size }} elapsedMs=$elapsedMs\n")
         }
     }
