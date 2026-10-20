@@ -43,7 +43,6 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.Format
-import com.janreins.tonnage.domain.SetInput
 import com.janreins.tonnage.domain.WorkoutStats
 
 /** What the set row edits for each way of logging an exercise. */
@@ -128,7 +127,7 @@ fun ExerciseCard(
                         onClick = {
                             menu = false
                             // Only ask when removing would throw away something logged.
-                            if (block.sets.any { it.completed || SetInput.isFilled(it, block.trackingType) }) {
+                            if (block.hasLoggedSets) {
                                 confirmRemove = true
                             } else {
                                 onRemove()

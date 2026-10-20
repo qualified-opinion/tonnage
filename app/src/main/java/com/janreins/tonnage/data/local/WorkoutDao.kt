@@ -109,6 +109,25 @@ abstract class WorkoutDao {
     @Query("DELETE FROM workout_exercises WHERE id = :id")
     abstract suspend fun deleteWorkoutExercise(id: Long)
 
+    // Read targets from the existing routine. Occurrence order keeps duplicate exercises distinct
+    // and doesn't change when workout exercises are moved up or down.
+    @Query("""
+        SELECT rs.id, we.id AS workoutExerciseId, rs.position, rs.type,
+               rs.weightKg, rs.reps, rs.distanceKm, rs.durationSec,
+               NULL AS rpe, 0 AS completed, NULL AS completedAt
+        FROM workout_exercises we
+        JOIN workouts w ON w.id = we.workoutId
+        JOIN routine_exercises re ON re.routineId = w.routineId AND re.exerciseId = we.exerciseId
+        JOIN routine_sets rs ON rs.routineExerciseId = re.id
+        WHERE w.id = :workoutId AND w.endedAt IS NULL
+          AND (SELECT COUNT(*) FROM workout_exercises earlier
+               WHERE earlier.workoutId = w.id AND earlier.exerciseId = we.exerciseId AND earlier.id < we.id)
+            = (SELECT COUNT(*) FROM routine_exercises earlier
+               WHERE earlier.routineId = re.routineId AND earlier.exerciseId = re.exerciseId AND earlier.position < re.position)
+        ORDER BY rs.position
+    """)
+    abstract fun observePlannedSets(workoutId: Long): Flow<List<WorkoutSet>>
+
     // Sets
 
     @Query(
@@ -197,7 +216,8 @@ abstract class WorkoutDao {
         deleteIncompleteSets(workoutId)
         deleteBlankSets(workoutId)
         deleteEmptyExercises(workoutId)
-        setEndedAt(workoutId, endedAt)
+        if (getWorkoutExercises(workoutId).isEmpty()) deleteWorkout(workoutId)
+        else setEndedAt(workoutId, endedAt)
     }
 
     /** The most recent finished workout containing the exercise, optionally limited to one routine. */

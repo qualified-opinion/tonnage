@@ -460,16 +460,13 @@ private fun FinishDialog(
                     if (filled > 0) {
                         "You have $filledSets that aren't ticked. Tick them and save, or keep going."
                     } else {
-                        "Tick off at least one set to save this workout, or discard it."
+                        "Tick off at least one set to save this workout, or discard it." +
+                            if (summary.plannedIncompleteSets > 0) " Untouched planned sets aren't logged." else ""
                     },
                 )
             },
             confirmButton = {
-                if (filled > 0) {
-                    Button(onClick = onCompleteFilledAndSave) { Text("Tick filled sets and save") }
-                } else {
-                    TextButton(onClick = onDismiss) { Text("Keep going") }
-                }
+                TextButton(onClick = onDismiss) { Text("Keep going") }
             },
             dismissButton = {
                 Row {
@@ -477,7 +474,7 @@ private fun FinishDialog(
                     TextButton(onClick = { if (filled > 0) confirmDiscard = true else onDiscard() }) {
                         Text("Discard workout", color = MaterialTheme.colorScheme.error)
                     }
-                    if (filled > 0) TextButton(onClick = onDismiss) { Text("Keep going") }
+                    if (filled > 0) TextButton(onClick = onCompleteFilledAndSave) { Text("Tick them and save") }
                 }
             },
         )
@@ -496,7 +493,10 @@ private fun FinishDialog(
                     Text("$filledSets $verb ticked and won't be saved unless you tick them.", color = MaterialTheme.colorScheme.error)
                     OutlinedButton(onClick = onCompleteFilledAndSave) { Text("Tick them and save") }
                 }
-                val blank = summary.incompleteSets - filled
+                if (summary.plannedIncompleteSets > 0) {
+                    Text("${summary.plannedIncompleteSets} untouched planned sets won't be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                val blank = summary.incompleteSets - filled - summary.plannedIncompleteSets
                 if (blank > 0) {
                     val sets = if (blank == 1) "1 empty set" else "$blank empty sets"
                     Text("$sets will be removed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
