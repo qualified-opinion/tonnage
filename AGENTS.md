@@ -6,7 +6,7 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Package Name / Application ID**: `com.janreins.tonnage`
 - **Database**: On-device SQLite via Room (`tonnage_database`), schemas exported to `app/schemas`.
 - **Network**: None. No remote API calls, analytics or cloud sync.
-- **Exercise library**: `app/src/main/assets/exercises.json`, a trimmed copy of free-exercise-db (public domain), seeded into Room by `ExerciseRepository.seedLibrary`, which adds missing built-ins once per app version and never touches existing rows. The successful version code is stored in SettingsStore only after seeding; the cheap tracking-type repair still runs every launch.
+- **Exercise library**: `app/src/main/assets/exercises.json`, a trimmed copy of free-exercise-db (public domain), seeded into Room by `ExerciseRepository.seedLibrary`, which adds missing built-ins once per app version and never touches existing rows. An empty library is always seeded. The successful version code is stored in SettingsStore for the supplied context only after seeding; the cheap tracking-type repair still runs every launch.
 
 ## Key Build & Test Commands
 - **Run Unit Tests**: `./gradlew test`

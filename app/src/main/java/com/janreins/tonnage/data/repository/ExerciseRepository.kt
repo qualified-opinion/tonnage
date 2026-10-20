@@ -25,8 +25,8 @@ class ExerciseRepository(database: AppDatabase) {
      * existing installs. Rows already there (built-in or custom) are left alone. Seed once per app version.
      */
     suspend fun seedLibrary(context: Context, versionCode: Int = BuildConfig.VERSION_CODE) = withContext(Dispatchers.IO) {
-        val settings = SettingsStore.get(context)
-        if (settings.librarySeedVersion != versionCode) {
+        val settings = SettingsStore(context)
+        if (settings.librarySeedVersion != versionCode || dao.builtInCount() == 0) {
             val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
             addMissingBuiltIns(ExerciseSeed.parse(json))
             settings.setLibrarySeedVersion(versionCode)

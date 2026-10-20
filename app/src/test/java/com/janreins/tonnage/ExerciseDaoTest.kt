@@ -119,4 +119,12 @@ class ExerciseDaoTest {
         assertEquals(2, SettingsStore(context).librarySeedVersion)
     }
 
+    @Test
+    fun anEmptyDatabaseSeedsEvenIfTheVersionWasAlreadyRemembered() = runTest {
+        repository.seedLibrary(context, versionCode = 1)
+        db.clearAllTables()
+        ExerciseRepository(db).seedLibrary(context, versionCode = 1)
+        assertEquals(876, db.exerciseDao().builtInCount())
+    }
+
 }
