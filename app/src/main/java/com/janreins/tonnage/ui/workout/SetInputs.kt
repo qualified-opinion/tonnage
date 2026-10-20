@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -79,7 +78,7 @@ fun SetNumberCell(
                 }
             }
         },
-        modifier = modifier.widthIn(min = 48.dp).height(48.dp)
+        modifier = modifier.height(48.dp)
             .semantics { this.contentDescription = contentDescription }.onFocusChanged {
                 if (focused && !it.isFocused) text = saved
                 focused = it.isFocused
