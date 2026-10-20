@@ -98,7 +98,7 @@ private fun TonnageApp() {
     var openExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
     // Which screen the exercise picker adds to, or null when it's closed.
     var pickerTarget by rememberSaveable { mutableStateOf<PickerTarget?>(null) }
-    var pickerSelection by remember { mutableStateOf(listOf<String>()) }
+    var pickerSelection by rememberSaveable { mutableStateOf(listOf<String>()) }
     var showAddExercise by remember { mutableStateOf(false) }
 
     val exercisesViewModel: ExercisesViewModel = viewModel()

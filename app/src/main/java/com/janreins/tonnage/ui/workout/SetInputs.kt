@@ -40,7 +40,7 @@ enum class CellKind(val keyboardType: KeyboardType, val input: SetInput.Kind) {
  * reformatted mid-entry) and reports every change; [key] resets it for a different set.
  * When it isn't focused it follows [initial], so values filled in from elsewhere show up, and
  * leaving it shows the saved value again (a time typed as "130" then reads "1:30"). A new
- * [fill] (tapping a "previous" value) replaces the text even while the box is focused.
+ * [fill] (tapping "previous" or ticking a set) replaces text even while the box is focused.
  */
 /** Text pushed into a cell from outside; [id] changes on every push so the same text re-applies. */
 data class CellFill(val id: Int, val text: String)

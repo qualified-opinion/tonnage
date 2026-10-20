@@ -33,6 +33,7 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Room migrations**: `MigrationTest` builds the previous schema by hand and opens it with the current app; add a case there for every new migration.
 - **Room schemas** (batch 4): the generated JSON in `app/schemas` is committed, and CI fails when a build leaves `git status --porcelain app/schemas` non-empty (the log prints the file to commit). Commit the new JSON with every schema change.
 - **Backup checks** (batch 4): routines and custom exercises keep their ids on restore, so `restore()` rejects repeated ids and a custom id equal to a built-in one, with a plain message, before deleting anything. `BackupJson.encode` refuses a file over `BACKUP_BYTE_LIMIT`, and `SettingsStore.lastBackupAt` is written only after the file is fully saved.
+- **Set cells**: Unicode decimal digits are normalized to ASCII before filtering. Colon times must parse, with minute/second parts at most 59; clearing remains allowed. Set rows are keyed by stored set id, and a completion pushes saved values through `CellFill` so focused cells update. Exercise-picker selection uses saveable state to survive recreation.
 - Navigation is a simple tab enum (`ui/state/MainTab`) plus screen state in `MainActivity`, as in Piso.
 - Plan and acceptance notes for later phases live in the project files (`workout-app/plan.md`, `workout-app/implementation-notes.md`).
 - How the app is built, the database, build and release: `HANDOVER.md` at the root.

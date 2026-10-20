@@ -28,13 +28,27 @@ object SetInput {
      * still shows and can be shortened.
      */
     fun accept(kind: Kind, current: String, input: String): String? {
-        val text = input.filter { char ->
+        val normalized = buildString {
+            input.codePoints().forEach { codePoint ->
+                val digit = Character.digit(codePoint, 10)
+                if (digit >= 0) append('0' + digit) else appendCodePoint(codePoint)
+            }
+        }
+        val filtered = normalized.filter { char ->
             char.isDigit() || when (kind) {
                 Kind.WEIGHT, Kind.DISTANCE -> char == '.' || char == ','
                 Kind.DURATION -> char == ':'
                 Kind.REPS -> false
             }
-        }.take(MAX_LENGTH)
+        }
+        if (kind == Kind.DURATION && filtered.length > MAX_LENGTH) return null
+        val text = filtered.take(MAX_LENGTH)
+        if (kind == Kind.DURATION && input.isNotEmpty()) {
+            val parts = text.split(':')
+            if (parts.size > 3 || parts.any { it.isEmpty() }) return null
+            if (parts.size > 1 && parts.drop(1).any { it.length > 2 || it.toInt() > 59 }) return null
+            if (Format.parseDuration(text) == null) return null
+        }
         if (text.count { it == '.' || it == ',' } > 1) return null
         // Plain digits for a time fill h:mm:ss from the right, so a seventh digit has nowhere to go.
         if (kind == Kind.DURATION && text.length > 6 && text.all { it.isDigit() }) return null
