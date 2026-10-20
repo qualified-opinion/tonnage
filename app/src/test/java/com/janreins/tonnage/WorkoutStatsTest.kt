@@ -227,11 +227,24 @@ class WorkoutStatsTest {
             listOf("bench" to estimate, "squat" to estimate),
             listOf("bench" to heaviest, "bench" to estimate, "squat" to heaviest, "pullup" to reps),
         )
+        val expectedValues = listOf(
+            emptyList(),
+            listOf(62.5 to 60.0, 79.1666667 to 76.0, 96.0 to 93.3333333, 7.0 to 6.0),
+            listOf(82.5 to 80.0),
+            listOf(65.0 to 62.5, 99.0 to 96.0, 8.0 to 7.0),
+            listOf(80.0 to 79.1666667, 101.3333333 to 99.0),
+            listOf(67.5 to 65.0, 81.0 to 80.0, 85.0 to 82.5, 9.0 to 8.0),
+        )
         val history = WorkoutStats.recordsByWorkout(rows.chunked(3).reversed().flatten())
         sessions.forEachIndexed { index, values ->
             val id = index + 1L
             val records = history[id].orEmpty()
             assertEquals("Workout $id", expected[index], records.map { it.exerciseId to it.kind })
+            records.zip(expectedValues[index]).forEach { (record, expectedValue) ->
+                assertEquals(expectedValue.first, record.value, 0.0001)
+                assertEquals(expectedValue.second, record.previous, 0.0001)
+                assertEquals(id * 10 + exercises.indexOfFirst { it.id == record.exerciseId }, record.setId)
+            }
             val blocks = values.mapIndexed { e, (kg, count) -> block(exercises[e], e + 1L, set(kg, count)) }
             val past = rows.filter { it.workoutId < id }.map { PastSet(it.exerciseId, it.weightKg, it.reps) }
             assertEquals(records.map { it.copy(setId = 0) }, WorkoutStats.detectRecords(blocks, past))
