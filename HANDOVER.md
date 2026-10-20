@@ -64,7 +64,7 @@ Nobody needs Android Studio. GitHub Actions does all of it.
 | Publish a release | GitHub > **Actions** > **Android Release** > **Run workflow**, pick branch `main`, type a version such as `1.4.0`, run. It tests, builds a signed APK, tags the commit `v1.4.0` and publishes the GitHub Release with `Tonnage-1.4.0.apk`. Pushing a `v*` tag does the same. | `.github/workflows/android-release.yml` |
 
 Things to know about releases:
-- **Always run it from `main`.** A run with a version typed fails on any other branch; with the version blank it only builds an APK artifact.
+- **Always run it from `main`.** A run with a version typed fails on any other branch; with the version blank it only builds an APK artifact. A pushed `v*` tag must also point to a commit already on `origin/main` (the current tip or an ancestor), or the release fails before signing or publishing.
 - `versionCode` is the Android Release workflow's run number, so it only goes up. Don't rename or recreate that workflow file, or the numbers restart and phones refuse the update as a downgrade.
 - A published release must be signed with the owner's key; the run stops if the secrets are missing. The secrets are repository secrets (Settings > Secrets and variables > Actions), set and working since 1.0.0: `TONNAGE_KEYSTORE_BASE64`, `TONNAGE_KEYSTORE_PASSWORD`, `TONNAGE_KEY_ALIAS`, `TONNAGE_KEY_PASSWORD`. Never print them or commit a keystore (`.gitignore` blocks `*.jks` and `*.keystore`).
 - CI debug APKs are signed with a different key than releases, so they can't be installed over the owner's release install. The owner tests through published releases. Switching between the two needs Back up, uninstall, install, Restore.
