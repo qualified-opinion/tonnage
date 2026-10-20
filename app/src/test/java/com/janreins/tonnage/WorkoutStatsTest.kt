@@ -7,6 +7,10 @@ import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.WorkoutExercise
 import com.janreins.tonnage.data.model.WorkoutSet
+import com.janreins.tonnage.data.repository.recordsFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PrKind
 import com.janreins.tonnage.domain.WorkoutStats
@@ -235,7 +239,7 @@ class WorkoutStatsTest {
             listOf(80.0 to 79.1666667, 101.3333333 to 99.0),
             listOf(67.5 to 65.0, 81.0 to 80.0, 85.0 to 82.5, 9.0 to 8.0),
         )
-        val history = WorkoutStats.recordsByWorkout(rows.chunked(3).reversed().flatten())
+        val history = runBlocking { recordsFlow(flowOf(rows.chunked(3).reversed().flatten())).first() }
         sessions.forEachIndexed { index, values ->
             val id = index + 1L
             val records = history[id].orEmpty()

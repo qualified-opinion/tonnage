@@ -121,7 +121,6 @@ private fun TonnageApp() {
     val openWorkoutId by historyViewModel.openId.collectAsStateWithLifecycle()
     val openWorkout by historyViewModel.opened.collectAsStateWithLifecycle()
     val editingWorkout by historyViewModel.editing.collectAsStateWithLifecycle()
-    val records by historyViewModel.records.collectAsStateWithLifecycle()
     val importState by dataViewModel.importState.collectAsStateWithLifecycle()
     val backupState by dataViewModel.backupState.collectAsStateWithLifecycle()
     val library by dataViewModel.library.collectAsStateWithLifecycle()
@@ -207,15 +206,18 @@ private fun TonnageApp() {
             },
             modifier = Modifier.fillMaxSize(),
         )
-        openWorkoutId != null -> WorkoutDetailScreen(
-            workout = openWorkout?.takeIf { it.workout.id == openWorkoutId },
-            records = openWorkoutId?.let { records[it] }.orEmpty(),
-            editing = editingWorkout,
-            viewModel = historyViewModel,
-            onAddExercise = { pickerTarget = PickerTarget.EDITED_WORKOUT },
-            onSaveAsRoutine = { routinesViewModel.newFromWorkout(it.workout.title, it.blocks) },
-            modifier = Modifier.fillMaxSize(),
-        )
+        openWorkoutId != null -> {
+            val records by historyViewModel.records.collectAsStateWithLifecycle()
+            WorkoutDetailScreen(
+                workout = openWorkout?.takeIf { it.workout.id == openWorkoutId },
+                records = if (editingWorkout) emptyList() else openWorkoutId?.let { records[it] }.orEmpty(),
+                editing = editingWorkout,
+                viewModel = historyViewModel,
+                onAddExercise = { pickerTarget = PickerTarget.EDITED_WORKOUT },
+                onSaveAsRoutine = { routinesViewModel.newFromWorkout(it.workout.title, it.blocks) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         else -> MainTabs(
             tab = tab,
             onTabChange = { tab = it },
@@ -240,6 +242,7 @@ private fun TonnageApp() {
                         modifier = modifier,
                     )
                     MainTab.HISTORY -> {
+                        val records by historyViewModel.records.collectAsStateWithLifecycle()
                         val workouts by historyViewModel.workouts.collectAsStateWithLifecycle()
                         HistoryScreen(workouts, records, onOpen = { historyViewModel.open(it.id) }, modifier = modifier)
                     }

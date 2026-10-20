@@ -2,6 +2,7 @@ package com.janreins.tonnage.data.repository
 
 import com.janreins.tonnage.data.local.ExerciseDao
 import com.janreins.tonnage.data.local.WorkoutDao
+import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.RoutineContents
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
@@ -14,8 +15,13 @@ import com.janreins.tonnage.domain.PersonalRecord
 import com.janreins.tonnage.domain.SetInput
 import com.janreins.tonnage.domain.WorkoutStats
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -43,7 +49,7 @@ class WorkoutRepository(
 
     /** Personal records over all finished workouts, by workout id. */
     fun observeRecords(): Flow<Map<Long, List<PersonalRecord>>> =
-        workoutDao.observeRecordSets().map { WorkoutStats.recordsByWorkout(it) }
+        recordsFlow(workoutDao.observeRecordSets())
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun withContents(workouts: Flow<Workout?>): Flow<ActiveWorkout?> = workouts.flatMapLatest { workout ->
@@ -240,3 +246,11 @@ class WorkoutRepository(
         }
     }
 }
+
+/** Suppress unchanged Room snapshots; cancel obsolete calculations away from the UI thread. */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun recordsFlow(
+    sets: Flow<List<RecordSet>>,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    calculate: suspend (List<RecordSet>) -> Map<Long, List<PersonalRecord>> = { WorkoutStats.recordsByWorkout(it) },
+): Flow<Map<Long, List<PersonalRecord>>> = sets.distinctUntilChanged().mapLatest { calculate(it) }.flowOn(dispatcher)
