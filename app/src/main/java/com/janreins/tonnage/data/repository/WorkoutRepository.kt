@@ -54,12 +54,13 @@ class WorkoutRepository(
                 workoutDao.observeWorkoutExercises(workout.id),
                 workoutDao.observeSetsForWorkout(workout.id),
                 exerciseDao.observeAll().map { all -> all.associateBy { it.id } },
-            ) { workoutExercises, sets, exercises ->
+                workoutDao.observePlannedSets(workout.id),
+            ) { workoutExercises, sets, exercises, plans ->
                 val setsByExercise = sets.groupBy { it.workoutExerciseId }
                 ActiveWorkout(
                     workout = workout,
                     blocks = workoutExercises.map { we ->
-                        ExerciseBlock(we, exercises[we.exerciseId], setsByExercise[we.id].orEmpty())
+                        ExerciseBlock(we, exercises[we.exerciseId], setsByExercise[we.id].orEmpty(), plans.filter { it.workoutExerciseId == we.id })
                     },
                 )
             }
@@ -197,12 +198,13 @@ class WorkoutRepository(
         true
     }
 
-    /** Ticks every set that has numbers in it but isn't ticked yet. Returns how many were ticked. */
-    suspend fun completeFilled(blocks: List<ExerciseBlock>): Int = write {
+    /** Ticks filled unticked sets; finish uses [enteredOnly] to exclude untouched plans. */
+    suspend fun completeFilled(blocks: List<ExerciseBlock>, enteredOnly: Boolean = false): Int = write {
         var ticked = 0
         blocks.forEach { block ->
-            workoutDao.getSets(block.workoutExercise.id)
-                .filter { !it.completed && SetInput.isFilled(it, block.trackingType) }
+            val current = block.copy(sets = workoutDao.getSets(block.workoutExercise.id))
+            current.sets
+                .filter { !it.completed && SetInput.isFilled(it, block.trackingType) && (!enteredOnly || current.isEntered(it)) }
                 .forEach {
                     workoutDao.updateCompleted(it.id, true, now())
                     ticked++

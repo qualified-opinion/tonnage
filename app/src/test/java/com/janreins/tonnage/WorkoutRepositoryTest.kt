@@ -6,11 +6,15 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
+import com.janreins.tonnage.data.model.Routine
+import com.janreins.tonnage.data.model.RoutineExercise
+import com.janreins.tonnage.data.model.RoutineSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.repository.ExerciseRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
+import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.domain.PrKind
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -365,4 +369,94 @@ class WorkoutRepositoryTest {
         assertEquals(listOf("Bench Press"), edited.blocks.map { it.name })
         assertEquals(2, edited.blocks.single().sets.size)
     }
+    private suspend fun startPlannedWorkout(): Long {
+        val routineId = db.routineDao().save(Routine(name = "Plan"), listOf("squat", "bench").mapIndexed { index, id ->
+            RoutineExercise(routineId = 0, exerciseId = id, position = index, restSeconds = 90) to
+                (0..2).map { RoutineSet(routineExerciseId = 0, position = it, weightKg = 60.0, reps = 5) }
+        })
+        return workouts.startFromRoutine(com.janreins.tonnage.data.model.RoutineContents(
+            db.routineDao().getRoutine(routineId)!!,
+            db.routineDao().getExercises(routineId).map { exercise ->
+                exercise to db.routineDao().getSets(routineId).filter { it.routineExerciseId == exercise.id }
+            },
+        ))
+    }
+
+    @Test
+    fun untouchedPlanDoesNotNeedTheEnteredSetDiscardWarningEvenAfterReopen() = runTest {
+        startPlannedWorkout()
+        val reopened = WorkoutRepository(db.workoutDao(), db.exerciseDao()).observeActive().first()!!
+        val summary = WorkoutStats.summarize(reopened.blocks, 0, now)
+        assertEquals(0, summary.completedSets)
+        assertEquals(0, summary.filledIncompleteSets)
+        assertEquals(6, summary.plannedIncompleteSets)
+        assertTrue(reopened.blocks.none { it.hasLoggedSets })
+    }
+
+    @Test
+    fun finishingPartOfARoutineSavesOnlyTickedSets() = runTest {
+        val id = startPlannedWorkout()
+        val squat = active().blocks[0]
+        squat.sets.forEach { assertTrue(workouts.complete(it.id, squat.trackingType, null)) }
+        // Moving exercises must not make an untouched target look entered.
+        workouts.moveExercise(id, squat.workoutExercise.id, 1)
+        val summary = WorkoutStats.summarize(active().blocks, 0, now)
+        assertEquals(3, summary.completedSets)
+        assertEquals(0, summary.filledIncompleteSets)
+        workouts.finish(id)
+        assertEquals(3, workouts.observeHistory().first().single().setCount)
+        assertEquals(listOf("Squat"), workouts.observeWorkout(id).first()!!.blocks.map { it.name })
+    }
+
+    @Test
+    fun secondarySaveTicksEnteredValuesButNeverUntouchedTargetsOrCopies() = runTest {
+        val id = startPlannedWorkout()
+        val squat = active().blocks[0]
+        workouts.setWeight(squat.sets[0].id, 65.0)
+        workouts.addSet(squat.workoutExercise.id)
+        val summary = WorkoutStats.summarize(active().blocks, 0, now)
+        assertEquals(1, summary.filledIncompleteSets)
+        assertEquals(6, summary.plannedIncompleteSets)
+        assertEquals(1, workouts.completeFilled(active().blocks, enteredOnly = true))
+        workouts.finish(id)
+        assertEquals(325.0, workouts.observeHistory().first().single().volumeKg, 0.0)
+        assertEquals(1, workouts.observeHistory().first().single().setCount)
+    }
+
+    @Test
+    fun emptyWorkoutStillOffersEnteredValuesButNotItsAddedCopy() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), 90)
+        val block = active().blocks.single()
+        workouts.setWeight(block.sets.single().id, 60.0)
+        workouts.setReps(block.sets.single().id, 8)
+        workouts.addSet(block.workoutExercise.id)
+        val summary = WorkoutStats.summarize(active().blocks, 0, now)
+        assertEquals(1, summary.filledIncompleteSets)
+        assertEquals(1, summary.plannedIncompleteSets)
+        assertTrue(active().blocks.single().hasLoggedSets)
+        assertEquals(1, workouts.completeFilled(active().blocks, enteredOnly = true))
+        workouts.finish(id)
+        assertEquals(1, workouts.observeHistory().first().single().setCount)
+    }
+
+    @Test
+    fun tickedThenClearedSetsLeaveNoWorkoutInHistoryOrProgress() = runTest {
+        val id = workouts.startEmpty()
+        workouts.addExercises(id, listOf("bench"), 90)
+        val set = active().blocks.single().sets.single()
+        workouts.setWeight(set.id, 60.0)
+        workouts.setReps(set.id, 8)
+        workouts.complete(set.id, TrackingType.WEIGHT_REPS, null)
+        workouts.setWeight(set.id, null)
+        workouts.setReps(set.id, null)
+        val summary = WorkoutStats.summarize(active().blocks, 0, now)
+        assertEquals(0, summary.completedSets)
+        assertEquals(0, summary.exerciseCount)
+        workouts.finish(id)
+        assertNull(db.workoutDao().getWorkout(id))
+        assertTrue(workouts.observeHistory().first().isEmpty())
+        assertTrue(db.workoutDao().observeProgressSets().first().isEmpty())
+    }
+
 }

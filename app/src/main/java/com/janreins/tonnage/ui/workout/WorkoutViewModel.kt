@@ -234,11 +234,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    /** Ticks every filled set that wasn't ticked, then saves the workout. */
+    /** Ticks entered unticked values (never untouched plans), then saves the workout. */
     fun completeFilledAndFinish(onSaved: () -> Unit) {
         val current = active.value ?: return
         viewModelScope.launch {
-            repository.completeFilled(current.blocks)
+            repository.completeFilled(current.blocks, enteredOnly = true)
             repository.finish(current.workout.id)
             endSession()
             onSaved()

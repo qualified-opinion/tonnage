@@ -13,9 +13,22 @@ data class ExerciseBlock(
     val workoutExercise: WorkoutExercise,
     val exercise: Exercise?,
     val sets: List<WorkoutSet>,
+    /** Routine targets, matched by set position; not another copy of logged data. */
+    val plannedSets: List<WorkoutSet> = emptyList(),
 ) {
     val name: String get() = exercise?.name ?: "Unknown exercise"
     val trackingType: TrackingType get() = exercise?.trackingType ?: TrackingType.WEIGHT_REPS
+
+    fun isPlanned(set: WorkoutSet): Boolean {
+        val source = plannedSets.firstOrNull { it.position == set.position }
+            ?: sets.filter { it.position < set.position }.maxByOrNull { it.position }
+            ?: return false
+        return set.weightKg == source.weightKg && set.reps == source.reps &&
+            set.distanceKm == source.distanceKm && set.durationSec == source.durationSec
+    }
+
+    fun isEntered(set: WorkoutSet): Boolean = SetInput.isFilled(set, trackingType) && !isPlanned(set)
+    val hasLoggedSets: Boolean get() = sets.any { SetInput.isFilled(it, trackingType) && (it.completed || isEntered(it)) }
 }
 
 enum class PrKind(val label: String) {
@@ -40,8 +53,9 @@ data class SessionSummary(
     val completedSets: Int,
     val incompleteSets: Int,
     val volumeKg: Double,
-    /** Unticked sets with numbers in them, which finishing would otherwise drop. */
+    /** Unticked entered values, excluding untouched routine targets and copied values. */
     val filledIncompleteSets: Int = 0,
+    val plannedIncompleteSets: Int = 0,
 )
 
 object WorkoutStats {
@@ -65,12 +79,15 @@ object WorkoutStats {
         val sets = blocks.flatMap { it.sets }
         return SessionSummary(
             durationMs = (now - startedAt).coerceAtLeast(0),
-            exerciseCount = blocks.count { block -> block.sets.any { it.completed } },
-            completedSets = sets.count { it.completed },
+            exerciseCount = blocks.count { block -> block.sets.any { it.completed && SetInput.isFilled(it, block.trackingType) } },
+            completedSets = blocks.sumOf { block -> block.sets.count { it.completed && SetInput.isFilled(it, block.trackingType) } },
             incompleteSets = sets.count { !it.completed },
             volumeKg = sets.sumOf { setVolume(it) },
             filledIncompleteSets = blocks.sumOf { block ->
-                block.sets.count { !it.completed && SetInput.isFilled(it, block.trackingType) }
+                block.sets.count { !it.completed && block.isEntered(it) }
+            },
+            plannedIncompleteSets = blocks.sumOf { block ->
+                block.sets.count { !it.completed && SetInput.isFilled(it, block.trackingType) && block.isPlanned(it) }
             },
         )
     }
