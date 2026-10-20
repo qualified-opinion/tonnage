@@ -21,6 +21,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,6 +53,7 @@ fun SetNumberCell(
     initial: String,
     placeholder: String,
     kind: CellKind,
+    contentDescription: String,
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     fill: CellFill? = null,
@@ -75,10 +78,11 @@ fun SetNumberCell(
                 }
             }
         },
-        modifier = modifier.height(40.dp).onFocusChanged {
-            if (focused && !it.isFocused) text = saved
-            focused = it.isFocused
-        },
+        modifier = modifier.height(48.dp)
+            .semantics { this.contentDescription = contentDescription }.onFocusChanged {
+                if (focused && !it.isFocused) text = saved
+                focused = it.isFocused
+            },
         singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(
             color = colors.onSurface,

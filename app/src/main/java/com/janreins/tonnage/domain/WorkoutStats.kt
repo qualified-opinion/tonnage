@@ -106,15 +106,17 @@ object WorkoutStats {
         PrKind.MOST_REPS -> (reps ?: 0).toDouble()
     }
 
+    /** Each kind establishes its own positive baseline before a later workout can beat it. */
+    private fun isRecord(value: Double, previous: Double): Boolean = previous > 0.0 && value > previous
+
     /**
      * Every record in history, by workout id. Workouts are walked in date order: a workout sets a
      * record when its best set beats every earlier workout's. As on the finish screen, an
-     * exercise's first workout sets none. Because this is worked out from the sets each time,
+     * kind's first positive value sets no record. Because this is worked out from the sets each time,
      * editing or deleting an old workout corrects the records after it.
      */
     fun recordsByWorkout(sets: List<RecordSet>): Map<Long, List<PersonalRecord>> {
         val best = mutableMapOf<Pair<String, PrKind>, Double>()
-        val done = mutableSetOf<String>()
         val result = mutableMapOf<Long, MutableList<PersonalRecord>>()
         sets.sortedWith(compareBy({ it.startedAt }, { it.workoutId }))
             .groupBy { it.workoutId }
@@ -126,7 +128,7 @@ object WorkoutStats {
                         val top = exerciseSets.maxBy { recordValue(kind, it.weightKg, it.reps) }
                         val value = recordValue(kind, top.weightKg, top.reps)
                         val before = best[exerciseId to kind] ?: 0.0
-                        if (exerciseId in done && value > before) {
+                        if (isRecord(value, before)) {
                             result.getOrPut(workoutId) { mutableListOf() } += PersonalRecord(
                                 exerciseId = exerciseId,
                                 exerciseName = first.exerciseName ?: "Unknown exercise",
@@ -138,7 +140,6 @@ object WorkoutStats {
                         }
                         if (value > before) best[exerciseId to kind] = value
                     }
-                    done += exerciseId
                 }
             }
         return result
@@ -150,15 +151,15 @@ object WorkoutStats {
      */
     fun detectRecords(blocks: List<ExerciseBlock>, history: List<PastSet>): List<PersonalRecord> {
         val historyByExercise = history.groupBy { it.exerciseId }
-        return blocks.flatMap { block ->
-            val exerciseId = block.workoutExercise.exerciseId
+        return blocks.groupBy { it.workoutExercise.exerciseId }.flatMap { (exerciseId, exerciseBlocks) ->
+            val block = exerciseBlocks.first()
             val past = historyByExercise[exerciseId].orEmpty()
             if (past.isEmpty()) return@flatMap emptyList()
-            val current = block.sets.filter { it.completed && it.type != SetType.WARMUP }
+            val current = exerciseBlocks.flatMap { it.sets }.filter { it.completed && it.type != SetType.WARMUP }
             if (current.isEmpty()) return@flatMap emptyList()
 
             fun record(kind: PrKind, now: Double, before: Double): PersonalRecord? =
-                if (now > before && now > 0.0) PersonalRecord(exerciseId, block.name, kind, now, before) else null
+                if (isRecord(now, before)) PersonalRecord(exerciseId, block.name, kind, now, before) else null
 
             recordKinds(block.trackingType).mapNotNull { kind ->
                 record(

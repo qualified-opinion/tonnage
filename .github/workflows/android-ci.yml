@@ -41,6 +41,9 @@ jobs:
       - name: Run unit tests
         run: ./gradlew test
 
+      - name: Report 20,000-set record guard timings
+        run: cat app/build/reports/records-guard.txt
+
       - name: Run debug lint
         run: ./gradlew lintDebug
 

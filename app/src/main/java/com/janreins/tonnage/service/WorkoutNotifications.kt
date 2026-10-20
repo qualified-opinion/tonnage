@@ -6,6 +6,12 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.os.Build
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.core.app.NotificationCompat
 import com.janreins.tonnage.MainActivity
 import com.janreins.tonnage.R
@@ -101,10 +107,34 @@ object WorkoutNotifications {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .build()
 
+    fun restAlertsEnabled(context: Context): Boolean {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        return manager.areNotificationsEnabled() &&
+            manager.getNotificationChannel(CHANNEL_REST_DONE)?.importance != NotificationManager.IMPORTANCE_NONE
+    }
+
+    /** Both the service and the in-app fallback use the same alarm vibration. */
+    fun vibrate(context: Context) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            context.getSystemService(Vibrator::class.java)
+        } ?: return
+        val effect = VibrationEffect.createWaveform(REST_DONE_VIBRATION, -1)
+        if (Build.VERSION.SDK_INT >= 33) {
+            vibrator.vibrate(effect, VibrationAttributes.Builder().setUsage(VibrationAttributes.USAGE_ALARM).build())
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build())
+        }
+    }
+
     /** Posts or updates a notification; silently does nothing if notifications are not allowed. */
     fun post(context: Context, id: Int, notification: Notification) {
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (!manager.areNotificationsEnabled()) return
+        if (!manager.areNotificationsEnabled() ||
+            manager.getNotificationChannel(notification.channelId)?.importance == NotificationManager.IMPORTANCE_NONE
+        ) return
         try {
             manager.notify(id, notification)
         } catch (_: SecurityException) {

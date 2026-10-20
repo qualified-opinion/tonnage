@@ -13,6 +13,7 @@ import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -23,17 +24,24 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /** The history list, plus the finished workout that's open (to view or edit). */
-class HistoryViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getInstance(application)
+class HistoryViewModel @JvmOverloads constructor(
+    application: Application,
+    private val db: AppDatabase = AppDatabase.getInstance(application),
+) : AndroidViewModel(application) {
     private val repository = WorkoutRepository(db.workoutDao(), db.exerciseDao())
     private val settings = SettingsStore.get(application)
 
     val workouts: StateFlow<List<WorkoutSummary>?> = repository.observeHistory()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Records over all history by workout id, recalculated whenever a workout changes. */
-    val records: StateFlow<Map<Long, List<PersonalRecord>>> = repository.observeRecords()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    private val _editing = MutableStateFlow(false)
+    val editing: StateFlow<Boolean> = _editing.asStateFlow()
+
+    /** Records are paused during editing and stop immediately when neither history screen is visible. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val records: StateFlow<Map<Long, List<PersonalRecord>>> = _editing
+        .flatMapLatest { editing -> if (editing) flowOf(emptyMap()) else repository.observeRecords() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyMap())
 
     private val _openId = MutableStateFlow<Long?>(null)
     val openId: StateFlow<Long?> = _openId.asStateFlow()
@@ -43,15 +51,21 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
         .flatMapLatest { id -> id?.let { repository.observeWorkout(it) } ?: flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    private val _editing = MutableStateFlow(false)
-    val editing: StateFlow<Boolean> = _editing.asStateFlow()
+    private var openJob: Job? = null
 
     fun open(workoutId: Long) {
+        openJob?.cancel()
         _editing.value = false
-        _openId.value = workoutId
+        _openId.value = null
+        openJob = viewModelScope.launch {
+            // Recover blank edit-mode rows left behind if the app was killed before Done.
+            if (db.workoutDao().getWorkout(workoutId)?.endedAt != null) repository.tidyEdited(workoutId)
+            _openId.value = workoutId
+        }
     }
 
     fun close() {
+        openJob?.cancel()
         if (_editing.value) finishEditing()
         _openId.value = null
     }
@@ -67,6 +81,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun delete() {
+        openJob?.cancel()
         val id = _openId.value ?: return
         _editing.value = false
         _openId.value = null

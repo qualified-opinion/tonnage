@@ -1,5 +1,12 @@
 package com.janreins.tonnage
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.LaunchedEffect
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.Toast
@@ -30,6 +37,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.janreins.tonnage.data.model.Workout
@@ -107,10 +116,24 @@ private fun TonnageApp() {
     val routinesViewModel: RoutinesViewModel = viewModel()
     val dataViewModel: DataViewModel = viewModel()
     val progressViewModel: ProgressViewModel = viewModel()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        progressViewModel.refresh()
+        workoutViewModel.ensureService()
+    }
     val settings = remember { SettingsStore.get(context) }
 
     val activeWorkout by workoutViewModel.active.collectAsStateWithLifecycle()
     val pendingResume by workoutViewModel.pendingResume.collectAsStateWithLifecycle()
+    val workoutLoaded by workoutViewModel.loaded.collectAsStateWithLifecycle()
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { workoutViewModel.ensureService() }
+    LaunchedEffect(activeWorkout?.workout?.id, pendingResume, workoutLoaded) {
+        val id = activeWorkout?.workout?.id
+        if (id != null && pendingResume == null && workoutLoaded && workoutViewModel.claimNotificationPermission(id)) {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     val finishPreview by workoutViewModel.finishPreview.collectAsStateWithLifecycle()
     val rest by workoutViewModel.restTimer.collectAsStateWithLifecycle()
     val exercisesState by exercisesViewModel.uiState.collectAsStateWithLifecycle()
@@ -121,7 +144,6 @@ private fun TonnageApp() {
     val openWorkoutId by historyViewModel.openId.collectAsStateWithLifecycle()
     val openWorkout by historyViewModel.opened.collectAsStateWithLifecycle()
     val editingWorkout by historyViewModel.editing.collectAsStateWithLifecycle()
-    val records by historyViewModel.records.collectAsStateWithLifecycle()
     val importState by dataViewModel.importState.collectAsStateWithLifecycle()
     val backupState by dataViewModel.backupState.collectAsStateWithLifecycle()
     val library by dataViewModel.library.collectAsStateWithLifecycle()
@@ -207,15 +229,18 @@ private fun TonnageApp() {
             },
             modifier = Modifier.fillMaxSize(),
         )
-        openWorkoutId != null -> WorkoutDetailScreen(
-            workout = openWorkout?.takeIf { it.workout.id == openWorkoutId },
-            records = openWorkoutId?.let { records[it] }.orEmpty(),
-            editing = editingWorkout,
-            viewModel = historyViewModel,
-            onAddExercise = { pickerTarget = PickerTarget.EDITED_WORKOUT },
-            onSaveAsRoutine = { routinesViewModel.newFromWorkout(it.workout.title, it.blocks) },
-            modifier = Modifier.fillMaxSize(),
-        )
+        openWorkoutId != null -> {
+            val records by historyViewModel.records.collectAsStateWithLifecycle()
+            WorkoutDetailScreen(
+                workout = openWorkout?.takeIf { it.workout.id == openWorkoutId },
+                records = if (editingWorkout) emptyList() else openWorkoutId?.let { records[it] }.orEmpty(),
+                editing = editingWorkout,
+                viewModel = historyViewModel,
+                onAddExercise = { pickerTarget = PickerTarget.EDITED_WORKOUT },
+                onSaveAsRoutine = { routinesViewModel.newFromWorkout(it.workout.title, it.blocks) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         else -> MainTabs(
             tab = tab,
             onTabChange = { tab = it },
@@ -240,6 +265,7 @@ private fun TonnageApp() {
                         modifier = modifier,
                     )
                     MainTab.HISTORY -> {
+                        val records by historyViewModel.records.collectAsStateWithLifecycle()
                         val workouts by historyViewModel.workouts.collectAsStateWithLifecycle()
                         HistoryScreen(workouts, records, onOpen = { historyViewModel.open(it.id) }, modifier = modifier)
                     }
