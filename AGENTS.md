@@ -13,6 +13,7 @@ qualified-opinion/tonnage is a private, offline-only strength training logger fo
 - **Lint**: `./gradlew lintDebug`
 - **Build Debug APK**: `./gradlew assembleDebug`
 - **Build Release APK**: `./gradlew assembleRelease`
+- Release shrinking uses Compose's consumer rules; don't blanket-keep `androidx.compose.**`. Android CI reports the release APK's byte size after `assembleRelease`. CI builds the minified APK but does not run it; the owner must phone-check a published release.
 
 ## Codebase Conventions & Constraints
 - **Offline Integrity**: Do not add network calls, remote API integrations, or cloud sync services.
