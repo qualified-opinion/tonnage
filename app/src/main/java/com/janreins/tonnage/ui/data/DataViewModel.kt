@@ -169,7 +169,7 @@ class DataViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             var written = false
             _backup.value = try {
-                val contents = backups.export(settings.defaultRestSeconds.value)
+                val contents = backups.export(settings.defaultRestSeconds.value, settings.themeMode.value, settings.hevyImportZone)
                 withContext(Dispatchers.IO) {
                     val bytes = encodeBackup(contents)
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
@@ -217,7 +217,7 @@ class DataViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             _backup.value = try {
                 backups.restore(contents)
-                settings.setDefaultRestSeconds(contents.defaultRestSeconds)
+                settings.restoreBackupSettings(contents.defaultRestSeconds, contents.themeMode, contents.hevyImportZone)
                 BackupState.Restored(contents.workouts.size)
             } catch (e: WorkoutInProgressException) {
                 BackupState.Failed(e.message!!)

@@ -1,6 +1,7 @@
 package com.janreins.tonnage.data.settings
 
 import android.content.Context
+import java.time.ZoneId
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +52,15 @@ class SettingsStore internal constructor(context: Context) {
 
     fun rememberHevyImportZone(zoneId: String) {
         if (hevyImportZone == null) prefs.edit(commit = true) { putString(KEY_HEVY_ZONE, zoneId) }
+    }
+
+    /** Old backups leave the theme alone; an established import zone is never overwritten. */
+    fun restoreBackupSettings(restSeconds: Int, theme: ThemeMode?, importZone: String?) {
+        setDefaultRestSeconds(restSeconds)
+        theme?.let(::setThemeMode)
+        if (hevyImportZone == null && importZone != null) {
+            runCatching { ZoneId.of(importZone) }.getOrNull()?.id?.let(::rememberHevyImportZone)
+        }
     }
 
     internal val librarySeedVersion: Int get() = prefs.getInt(KEY_LIBRARY_VERSION, -1)
