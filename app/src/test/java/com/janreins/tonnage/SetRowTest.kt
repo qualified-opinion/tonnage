@@ -3,6 +3,10 @@ package com.janreins.tonnage
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
@@ -71,7 +75,8 @@ class SetRowTest {
             it.copy(weightKg = 60.0, reps = 8, completed = true)
         }
         val weight = compose.onAllNodes(hasSetTextAction())[0]
-        weight.performClick().assertIsFocused().assertTextEquals("")
+        weight.performClick().assertIsFocused()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("")))
         compose.onNodeWithContentDescription("Mark set done").performClick()
         weight.assertTextEquals("60")
         compose.onAllNodes(hasSetTextAction())[1].assertTextEquals("8")
