@@ -2,6 +2,7 @@ package com.janreins.tonnage.ui.workout
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +36,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,11 +52,11 @@ import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.domain.WorkoutStats
 
 /** What the set row edits for each way of logging an exercise. */
-private enum class Field(val header: String, val placeholder: String, val kind: CellKind) {
-    WEIGHT("KG", "0", CellKind.WEIGHT),
-    REPS("REPS", "0", CellKind.REPS),
-    DISTANCE("KM", "0", CellKind.DISTANCE),
-    TIME("TIME", "0:00", CellKind.DURATION),
+private enum class Field(val header: String, val placeholder: String, val kind: CellKind, val spokenName: String) {
+    WEIGHT("KG", "0", CellKind.WEIGHT, "weight, kg"),
+    REPS("REPS", "0", CellKind.REPS, "reps"),
+    DISTANCE("KM", "0", CellKind.DISTANCE, "distance, km"),
+    TIME("TIME", "0:00", CellKind.DURATION, "time"),
 }
 
 /** How a set's stored value for [field] reads in its cell. */
@@ -144,11 +148,11 @@ fun ExerciseCard(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HeaderText("SET", Modifier.width(40.dp))
+            HeaderText("SET", Modifier.width(48.dp))
             if (previous != null) HeaderText("PREVIOUS", Modifier.weight(PREVIOUS_WEIGHT))
             fields.forEach { HeaderText(it.header, Modifier.weight(1f)) }
             if (showCheck) {
-                Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
                     Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                 }
             }
@@ -158,6 +162,7 @@ fun ExerciseCard(
                 SetRow(
                     set = set,
                     label = labels[index],
+                    number = index + 1,
                     fields = fields,
                     actions = actions,
                     showPrevious = previous != null,
@@ -228,6 +233,7 @@ private const val PREVIOUS_WEIGHT = 1.3f
 private fun SetRow(
     set: WorkoutSet,
     label: String,
+    number: Int,
     fields: List<Field>,
     actions: SetActions,
     showPrevious: Boolean,
@@ -252,7 +258,7 @@ private fun SetRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SetTypeButton(set, label, actions, Modifier.width(40.dp))
+        SetTypeButton(set, label, number, actions, Modifier.width(48.dp))
         if (showPrevious) {
             val text = previous?.let { Format.compactSet(it, trackingType) }.orEmpty()
             Text(
@@ -283,6 +289,7 @@ private fun SetRow(
                 initial = cellText(field, set),
                 placeholder = field.placeholder,
                 kind = field.kind,
+                contentDescription = "Set $number ${field.spokenName}",
                 onChange = { text ->
                     when (field) {
                         Field.WEIGHT -> actions.onWeight(set, Format.parseDecimal(text))
@@ -298,14 +305,15 @@ private fun SetRow(
         if (showCheck) {
             Box(
                 Modifier
-                    .size(44.dp, 40.dp)
+                    .size(48.dp)
                     .background(if (set.completed) colors.primary else colors.surfaceVariant, RoundedCornerShape(8.dp))
-                    .clickable { actions.onToggle(set) },
+                    .toggleable(value = set.completed, role = Role.Checkbox, onValueChange = { actions.onToggle(set) })
+                    .semantics { contentDescription = "Set $number done" },
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.Check,
-                    contentDescription = if (set.completed) "Mark set not done" else "Mark set done",
+                    contentDescription = null,
                     tint = if (set.completed) colors.onPrimary else colors.onSurfaceVariant,
                 )
             }
@@ -315,7 +323,7 @@ private fun SetRow(
 
 /** Tap the set number to change its type or delete it, as in Hevy. */
 @Composable
-private fun SetTypeButton(set: WorkoutSet, label: String, actions: SetActions, modifier: Modifier) {
+private fun SetTypeButton(set: WorkoutSet, label: String, number: Int, actions: SetActions, modifier: Modifier) {
     var open by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     val color = when (set.type) {
@@ -326,7 +334,8 @@ private fun SetTypeButton(set: WorkoutSet, label: String, actions: SetActions, m
     }
     Box(modifier, contentAlignment = Alignment.Center) {
         Box(
-            Modifier.size(40.dp).clickable { open = true },
+            Modifier.size(48.dp).clickable(role = Role.Button) { open = true }
+                .semantics { contentDescription = "Set $number type, ${set.type.label}" },
             contentAlignment = Alignment.Center,
         ) {
             Text(label, color = color, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyLarge)
