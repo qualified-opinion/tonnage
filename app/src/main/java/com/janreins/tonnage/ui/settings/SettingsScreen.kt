@@ -137,7 +137,7 @@ fun SettingsScreen(
                 headlineContent = { Text("Back up to a file") },
                 supportingContent = {
                     Text(
-                        "Saves your workouts, routines and custom exercises. Keep it in Drive or email it to yourself.\n" +
+                        "Saves your workouts, routines, custom exercises, rest setting, theme and Hevy import time zone. Keep it in Drive or email it to yourself.\n" +
                             "A workout in progress isn't included in a backup.\n" +
                             Format.lastBackup(lastBackupAt, System.currentTimeMillis()),
                     )

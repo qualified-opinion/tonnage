@@ -1,6 +1,7 @@
 package com.janreins.tonnage.data.backup
 
 import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
+import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.RoutineContents
@@ -29,6 +30,8 @@ data class BackupContents(
     val workouts: List<BackupWorkout>,
     val routines: List<RoutineContents>,
     val hevyMappings: List<HevyMapping>,
+    val themeMode: ThemeMode? = null,
+    val hevyImportZone: String? = null,
 )
 
 class BackupFormatException(message: String = "This file is incomplete or damaged. Nothing was changed.") : Exception(message)
@@ -51,7 +54,8 @@ object BackupJson {
         put("format", FORMAT)
         put("schemaVersion", SCHEMA_VERSION)
         put("exportedAt", contents.exportedAt)
-        put("settings", JSONObject().put("defaultRestSeconds", contents.defaultRestSeconds))
+        put("settings", JSONObject().put("defaultRestSeconds", contents.defaultRestSeconds)
+            .putOpt("themeMode", contents.themeMode?.name).putOpt("hevyImportZone", contents.hevyImportZone))
         put("customExercises", JSONArray(contents.customExercises.map(::exerciseJson)))
         put("workouts", JSONArray(contents.workouts.map(::workoutJson)))
         put("routines", JSONArray(contents.routines.map(::routineJson)))
@@ -81,9 +85,12 @@ object BackupJson {
         }
         if (version < 1) throw BackupFormatException("This backup's version isn't recognised.")
         return try {
+            val settings = root.getJSONObject("settings")
             BackupContents(
                 exportedAt = root.longValue("exportedAt"),
-                defaultRestSeconds = root.getJSONObject("settings").intValue("defaultRestSeconds"),
+                defaultRestSeconds = settings.intValue("defaultRestSeconds"),
+                themeMode = ThemeMode.entries.firstOrNull { it.name == settings.opt("themeMode") },
+                hevyImportZone = settings.opt("hevyImportZone") as? String,
                 customExercises = root.objects("customExercises").map(::exercise),
                 workouts = root.objects("workouts").map(::workout),
                 routines = root.objects("routines").map(::routine),

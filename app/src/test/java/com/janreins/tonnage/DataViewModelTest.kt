@@ -19,6 +19,10 @@ import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.model.Routine
 import com.janreins.tonnage.data.model.RoutineContents
 import com.janreins.tonnage.data.settings.SettingsStore
+import com.janreins.tonnage.data.settings.ThemeMode
+import com.janreins.tonnage.data.local.AppDatabase
+import com.janreins.tonnage.data.model.Exercise
+import kotlinx.coroutines.runBlocking
 import com.janreins.tonnage.ui.data.BackupState
 import com.janreins.tonnage.ui.data.DataViewModel
 import com.janreins.tonnage.ui.data.ImportState
@@ -182,6 +186,81 @@ class DataViewModelTest {
         assertEquals(saved, BackupJson.read(out.toString(Charsets.UTF_8.name())).exportedAt)
     }
 
+
+    private fun restoreText(text: String) {
+        val uri = Uri.parse("content://test/settings-backup")
+        shadowOf(application.contentResolver).registerInputStream(uri, ByteArrayInputStream(text.toByteArray()))
+        model.openBackup(uri)
+        awaitCondition { model.backupState.value is BackupState.ConfirmRestore }
+        model.confirmRestore()
+        awaitCondition { model.backupState.value is BackupState.Restored || model.backupState.value is BackupState.Failed }
+        assertTrue("Restore failed: ${model.backupState.value}", model.backupState.value is BackupState.Restored)
+    }
+
+    @Test fun backupRoundTripRestoresThemeAndZoneOnAPhoneWithoutASavedZone() {
+        val settings = SettingsStore.get(application)
+        settings.setThemeMode(ThemeMode.DARK)
+        settings.rememberHevyImportZone("Asia/Manila")
+        val out = ByteArrayOutputStream()
+        val uri = Uri.parse("content://test/settings-out")
+        shadowOf(application.contentResolver).registerOutputStream(uri, out)
+        model.saveBackup(uri)
+        awaitCondition { model.backupState.value is BackupState.Saved }
+        val text = out.toString(Charsets.UTF_8.name())
+        val parsed = BackupJson.read(text)
+        assertEquals(ThemeMode.DARK, parsed.themeMode)
+        assertEquals("Asia/Manila", parsed.hevyImportZone)
+        assertEquals(parsed, BackupJson.read(BackupJson.write(parsed)))
+        assertEquals(1, org.json.JSONObject(text).getInt("schemaVersion"))
+        settings.setThemeMode(ThemeMode.LIGHT)
+        // Simulate a destination phone which has not imported a Hevy file yet.
+        application.getSharedPreferences("settings", Application.MODE_PRIVATE).edit().remove("hevy_import_zone").commit()
+        restoreText(text)
+        assertEquals(ThemeMode.DARK, settings.themeMode.value)
+        assertEquals("Asia/Manila", settings.hevyImportZone)
+    }
+
+    @Test fun oldExporterFixtureKeepsThePhonesThemeAndZone() {
+        val settings = SettingsStore.get(application)
+        settings.setThemeMode(ThemeMode.LIGHT)
+        settings.rememberHevyImportZone("Asia/Manila")
+        runBlocking {
+            AppDatabase.getInstance(application).exerciseDao().insertAll(listOf(
+                Exercise(id = "bench", name = "Bench", category = "strength", equipment = "barbell", primaryMuscles = "chest"),
+            ))
+        }
+        restoreText(javaClass.getResource("/backup/current-export-v1.json")!!.readText())
+        assertEquals(ThemeMode.LIGHT, settings.themeMode.value)
+        assertEquals("Asia/Manila", settings.hevyImportZone)
+        assertEquals(75, settings.defaultRestSeconds.value)
+    }
+
+    @Test fun restoreKeepsAnExistingImportZone() {
+        val settings = SettingsStore.get(application)
+        settings.rememberHevyImportZone("Asia/Manila")
+        val contents = BackupContents(1L, 90, emptyList(), emptyList(), emptyList(), emptyList(), ThemeMode.DARK, "Europe/Amsterdam")
+        restoreText(BackupJson.write(contents))
+        assertEquals("Asia/Manila", settings.hevyImportZone)
+        assertEquals(ThemeMode.DARK, settings.themeMode.value)
+    }
+
+    @Test fun invalidImportZoneIsIgnoredWithoutFailingRestore() {
+        val settings = SettingsStore.get(application)
+        val contents = BackupContents(1L, 90, emptyList(), emptyList(), emptyList(), emptyList(), ThemeMode.DARK, "Invalid/Zone")
+        restoreText(BackupJson.write(contents))
+        assertNull(settings.hevyImportZone)
+        assertEquals(ThemeMode.DARK, settings.themeMode.value)
+    }
+
+    @Test fun unknownThemeIsIgnoredInsteadOfResettingThePhonesTheme() {
+        val settings = SettingsStore.get(application)
+        settings.setThemeMode(ThemeMode.LIGHT)
+        val contents = BackupContents(1L, 90, emptyList(), emptyList(), emptyList(), emptyList())
+        val json = org.json.JSONObject(BackupJson.write(contents))
+        json.getJSONObject("settings").put("themeMode", "FUTURE_THEME")
+        restoreText(json.toString())
+        assertEquals(ThemeMode.LIGHT, settings.themeMode.value)
+    }
 
     private class BackupProvider(private val refuseDelete: Boolean = false) : ContentProvider() {
         var exists = true

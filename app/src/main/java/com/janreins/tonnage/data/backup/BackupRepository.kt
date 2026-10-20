@@ -1,6 +1,7 @@
 package com.janreins.tonnage.data.backup
 
 import androidx.room.withTransaction
+import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.RoutineContents
 
@@ -14,7 +15,11 @@ class BackupRepository(
     private val dao = db.importDao()
 
     /** Reads everything worth keeping. The workout in progress, if any, isn't included. */
-    suspend fun export(defaultRestSeconds: Int): BackupContents = db.withTransaction {
+    suspend fun export(
+        defaultRestSeconds: Int,
+        themeMode: ThemeMode? = null,
+        hevyImportZone: String? = null,
+    ): BackupContents = db.withTransaction {
         val exercisesByWorkout = dao.allWorkoutExercises().groupBy { it.workoutId }
         val setsByExercise = dao.allWorkoutSets().groupBy { it.workoutExerciseId }
         val routineExercises = dao.allRoutineExercises().groupBy { it.routineId }
@@ -22,6 +27,8 @@ class BackupRepository(
         BackupContents(
             exportedAt = now(),
             defaultRestSeconds = defaultRestSeconds,
+            themeMode = themeMode,
+            hevyImportZone = hevyImportZone,
             customExercises = dao.customExercises(),
             workouts = dao.finishedWorkouts().map { workout ->
                 BackupWorkout(
