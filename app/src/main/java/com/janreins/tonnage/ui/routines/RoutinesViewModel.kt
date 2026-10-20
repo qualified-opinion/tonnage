@@ -2,6 +2,7 @@ package com.janreins.tonnage.ui.routines
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.RoutineSummary
@@ -17,7 +18,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The routine being edited, and how it looked when the editor opened. */
@@ -25,9 +25,11 @@ data class RoutineEditor(val original: RoutineDraft, val draft: RoutineDraft) {
     val hasChanges: Boolean get() = draft != original
 }
 
-class RoutinesViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val db = AppDatabase.getInstance(application)
+class RoutinesViewModel @JvmOverloads constructor(
+    application: Application,
+    private val savedState: SavedStateHandle,
+    private val db: AppDatabase = AppDatabase.getInstance(application),
+) : AndroidViewModel(application) {
     private val repository = RoutineRepository(db.routineDao(), db.exerciseDao())
     private val settings = SettingsStore.get(application)
 
@@ -38,32 +40,42 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         .map { all -> all.associateBy { it.id } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
-    private val _editor = MutableStateFlow<RoutineEditor?>(null)
+    private val _editor = MutableStateFlow(RoutineDraftState.decode(savedState[RoutineDraftState.KEY]))
     val editor: StateFlow<RoutineEditor?> = _editor.asStateFlow()
 
     val editorBlocks: StateFlow<List<ExerciseBlock>> = combine(_editor, library) { editor, exercises ->
         editor?.draft?.toBlocks(exercises).orEmpty()
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private var lastKey = 0L
+    private val _recoveryLimited = MutableStateFlow(false)
+    val recoveryLimited: StateFlow<Boolean> = _recoveryLimited.asStateFlow()
+
+    init {
+        if (_editor.value == null) savedState.remove<String>(RoutineDraftState.KEY)
+    }
+
+    private var lastKey = _editor.value?.let { editor ->
+        (editor.original.exercises + editor.draft.exercises)
+            .flatMap { exercise -> listOf(exercise.key) + exercise.sets.map { it.key } }.maxOrNull()
+    } ?: 0L
     private fun nextKey(): Long = ++lastKey
     private var saving = false
 
     fun newRoutine() {
         val draft = RoutineDraft()
-        _editor.value = RoutineEditor(draft, draft)
+        publish(RoutineEditor(draft, draft))
     }
 
     /** Opens the editor on a new routine copied from a workout; closing asks before discarding it. */
     fun newFromWorkout(name: String, blocks: List<ExerciseBlock>) {
-        _editor.value = RoutineEditor(original = RoutineDraft(), draft = RoutineDraft.fromBlocks(name, blocks, ::nextKey))
+        publish(RoutineEditor(original = RoutineDraft(), draft = RoutineDraft.fromBlocks(name, blocks, ::nextKey)))
     }
 
     fun edit(routineId: Long) {
         viewModelScope.launch {
             val contents = repository.load(routineId) ?: return@launch
             val draft = RoutineDraft.from(contents, ::nextKey)
-            _editor.value = RoutineEditor(draft, draft)
+            publish(RoutineEditor(draft, draft))
         }
     }
 
@@ -76,7 +88,7 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun close() {
-        _editor.value = null
+        publish(null)
     }
 
     fun save() {
@@ -86,15 +98,23 @@ class RoutinesViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             try {
                 repository.save(draft.id, draft.name, draft.toEntities())
-                _editor.value = null
+                publish(null)
             } finally {
                 saving = false
             }
         }
     }
 
+    private fun publish(editor: RoutineEditor?) {
+        val encoded = editor?.let(RoutineDraftState::encode)
+        if (encoded == null) savedState.remove<String>(RoutineDraftState.KEY)
+        else savedState[RoutineDraftState.KEY] = encoded
+        _recoveryLimited.value = editor != null && encoded == null
+        _editor.value = editor
+    }
+
     private fun update(transform: (RoutineDraft) -> RoutineDraft) {
-        _editor.update { it?.copy(draft = transform(it.draft)) }
+        publish(_editor.value?.let { it.copy(draft = transform(it.draft)) })
     }
 
     fun rename(name: String) = update { it.copy(name = name) }

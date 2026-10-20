@@ -22,7 +22,7 @@ data class DraftSet(
 data class DraftExercise(val key: Long, val exerciseId: String, val restSeconds: Int, val sets: List<DraftSet>)
 
 /**
- * A routine being edited. It lives in memory until Save, so closing the editor leaves the
+ * A routine being edited. Its recoverable editor snapshot stays separate until Save, so closing the editor leaves the
  * saved routine untouched. [id] is 0 for a routine that hasn't been saved yet.
  */
 data class RoutineDraft(val id: Long = 0, val name: String = "", val exercises: List<DraftExercise> = emptyList()) {
