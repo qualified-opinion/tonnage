@@ -1,5 +1,12 @@
 package com.janreins.tonnage
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import androidx.compose.runtime.LaunchedEffect
 import android.graphics.Color
 import android.os.Bundle
 import android.widget.Toast
@@ -109,11 +116,24 @@ private fun TonnageApp() {
     val routinesViewModel: RoutinesViewModel = viewModel()
     val dataViewModel: DataViewModel = viewModel()
     val progressViewModel: ProgressViewModel = viewModel()
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { progressViewModel.refresh() }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        progressViewModel.refresh()
+        workoutViewModel.ensureService()
+    }
     val settings = remember { SettingsStore.get(context) }
 
     val activeWorkout by workoutViewModel.active.collectAsStateWithLifecycle()
     val pendingResume by workoutViewModel.pendingResume.collectAsStateWithLifecycle()
+    val workoutLoaded by workoutViewModel.loaded.collectAsStateWithLifecycle()
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { workoutViewModel.ensureService() }
+    LaunchedEffect(activeWorkout?.workout?.id, pendingResume, workoutLoaded) {
+        val id = activeWorkout?.workout?.id
+        if (id != null && pendingResume == null && workoutLoaded && workoutViewModel.claimNotificationPermission(id)) {
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
     val finishPreview by workoutViewModel.finishPreview.collectAsStateWithLifecycle()
     val rest by workoutViewModel.restTimer.collectAsStateWithLifecycle()
     val exercisesState by exercisesViewModel.uiState.collectAsStateWithLifecycle()

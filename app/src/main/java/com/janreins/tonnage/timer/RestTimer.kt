@@ -49,9 +49,7 @@ object RestTimer {
     }
 
     /** Ends [expected] if it is still the running countdown (not replaced by a newer one). */
-    fun finish(expected: State) {
-        _state.compareAndSet(expected, null)
-    }
+    fun finish(expected: State): Boolean = _state.compareAndSet(expected, null)
 
     fun remainingMs(state: State, now: Long = clock()): Long = (state.endsAt - now).coerceAtLeast(0)
 }
