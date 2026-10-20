@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.ui.workout.ExerciseCard
 import com.janreins.tonnage.ui.workout.SetActions
@@ -48,6 +49,7 @@ fun RoutineEditorScreen(
     onAddExercise: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val recoveryLimited by viewModel.recoveryLimited.collectAsStateWithLifecycle()
     var confirmClose by remember { mutableStateOf(false) }
     val close: () -> Unit = {
         if (editor.hasChanges) {
@@ -86,6 +88,10 @@ fun RoutineEditorScreen(
     ) { padding ->
         LazyColumn(Modifier.padding(padding).fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
+                if (recoveryLimited) {
+                    Text("This draft is too large to recover if Android closes the app. Save it before leaving.",
+                        color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
+                }
                 OutlinedTextField(
                     value = editor.draft.name,
                     onValueChange = viewModel::rename,
