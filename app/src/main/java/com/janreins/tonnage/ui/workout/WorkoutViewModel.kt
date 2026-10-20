@@ -102,6 +102,15 @@ class WorkoutViewModel @JvmOverloads constructor(
         serviceStarter()
     }
 
+    private var permissionWorkout: Long? = null
+
+    /** Once per workout in this process: rotation keeps it, process recovery asks again. */
+    fun claimNotificationPermission(workoutId: Long): Boolean {
+        if (permissionWorkout == workoutId) return false
+        permissionWorkout = workoutId
+        return true
+    }
+
     /** Retry a refused start once when returning to the foreground, after a confirmed resume. */
     fun ensureService() {
         _notificationsAvailable.value = WorkoutNotifications.restAlertsEnabled(getApplication())

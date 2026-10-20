@@ -126,11 +126,9 @@ private fun TonnageApp() {
     val pendingResume by workoutViewModel.pendingResume.collectAsStateWithLifecycle()
     val workoutLoaded by workoutViewModel.loaded.collectAsStateWithLifecycle()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { workoutViewModel.ensureService() }
-    var permissionWorkout by rememberSaveable { mutableStateOf<Long?>(null) }
     LaunchedEffect(activeWorkout?.workout?.id, pendingResume, workoutLoaded) {
         val id = activeWorkout?.workout?.id
-        if (id != null && pendingResume == null && workoutLoaded && permissionWorkout != id) {
-            permissionWorkout = id
+        if (id != null && pendingResume == null && workoutLoaded && workoutViewModel.claimNotificationPermission(id)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 permission.launch(Manifest.permission.POST_NOTIFICATIONS)
             }

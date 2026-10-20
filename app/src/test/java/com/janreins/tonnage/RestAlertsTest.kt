@@ -100,6 +100,15 @@ class RestAlertsTest {
         assertEquals(1, starts)
     }
 
+    @Test fun permissionIsRequestedOncePerWorkoutAndCanBeRequestedAfterProcessRecovery() {
+        val current = model()
+        assertTrue(current.claimNotificationPermission(1))
+        assertFalse(current.claimNotificationPermission(1))
+        assertTrue(current.claimNotificationPermission(2))
+        assertFalse(current.claimNotificationPermission(2))
+        assertTrue(model().claimNotificationPermission(2))
+    }
+
     @Test fun fallbackVibratesOnlyOnceForAnExpiredUnclaimedRest() {
         val model = model()
         var now = 1_000L
