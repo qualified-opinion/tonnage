@@ -134,6 +134,8 @@ class SetRowTest {
         showSets(listOf(WorkoutSet(id = 1, workoutExerciseId = 1, position = 0, type = SetType.WARMUP)))
         compose.onNodeWithContentDescription("Set 1 type, Warm-up").performClick()
         compose.onNodeWithText("Delete set").assertExists()
+        compose.onNodeWithText("Normal").performClick()
+        compose.onNodeWithText("Delete set").assertDoesNotExist()
         compose.onNodeWithContentDescription("Set 1 weight, kg").assertExists()
     }
 
