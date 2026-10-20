@@ -96,8 +96,43 @@ class RestAlertsTest {
         model.ensureService(); dispatcher.scheduler.runCurrent()
         assertNotNull(model.pendingResume.value)
         assertEquals(0, starts)
-        model.resumePending()
+        model.resumePending(); dispatcher.scheduler.runCurrent()
         assertEquals(1, starts)
+    }
+
+    @Test fun recoveryRestoresTheCountdownAndResumeStartsTheService() = runTest {
+        WorkoutSession.confirmedInThisProcess = false
+        db.workoutDao().insertWorkout(Workout(title = "Bench", startedAt = 1))
+        RestTimer.clock = { 1_000_000L }
+        app.getSharedPreferences("rest_timer", Application.MODE_PRIVATE).edit()
+            .putLong("end", 1_040_000).putLong("total", 60_000).putLong("savedAt", 980_000)
+            .putLong("wallEnd", System.currentTimeMillis() + 40_000).putString("exercise", "Bench").commit()
+        val model = model()
+        dispatcher.scheduler.runCurrent()
+        assertEquals(40_000L, RestTimer.remainingMs(model.restTimer.value!!))
+        assertEquals(0, starts)
+        model.resumePending(); dispatcher.scheduler.runCurrent()
+        assertEquals(1, starts)
+        assertEquals(40_000L, RestTimer.remainingMs(model.restTimer.value!!))
+    }
+
+    @Test fun recoveryWithoutAnActiveWorkoutClearsAnOrphanedRest() {
+        RestTimer.attach(app)
+        RestTimer.start(60, "Bench", null)
+        model(); dispatcher.scheduler.runCurrent()
+        assertNull(RestTimer.state.value)
+        assertTrue(app.getSharedPreferences("rest_timer", Application.MODE_PRIVATE).all.isEmpty())
+    }
+
+    @Test fun discardingRecoveryClearsTheSavedCountdown() = runTest {
+        WorkoutSession.confirmedInThisProcess = false
+        db.workoutDao().insertWorkout(Workout(title = "Bench", startedAt = 1))
+        val model = model()
+        dispatcher.scheduler.runCurrent()
+        RestTimer.start(60, "Bench", null)
+        model.discardPending(); dispatcher.scheduler.runCurrent()
+        assertNull(RestTimer.state.value)
+        assertTrue(app.getSharedPreferences("rest_timer", Application.MODE_PRIVATE).all.isEmpty())
     }
 
     @Test fun permissionIsRequestedOncePerWorkoutAndCanBeRequestedAfterProcessRecovery() {
@@ -111,6 +146,7 @@ class RestAlertsTest {
 
     @Test fun fallbackVibratesOnlyOnceForAnExpiredUnclaimedRest() {
         val model = model()
+        dispatcher.scheduler.runCurrent()
         var now = 1_000L
         RestTimer.clock = { now }
         RestTimer.start(1, "Bench", null)

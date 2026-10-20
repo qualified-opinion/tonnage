@@ -72,8 +72,10 @@ class WorkoutViewModel @JvmOverloads constructor(
     val restTimer: StateFlow<RestTimer.State?> = RestTimer.state
 
     init {
+        RestTimer.attach(application)
         viewModelScope.launch {
             val existing = repository.getActive()
+            if (existing == null) RestTimer.skip() else RestTimer.restore()
             if (existing != null && !WorkoutSession.confirmedInThisProcess) {
                 _pendingResume.value = existing
             } else if (existing != null) {
@@ -125,6 +127,7 @@ class WorkoutViewModel @JvmOverloads constructor(
 
     fun startEmptyWorkout() {
         viewModelScope.launch {
+            RestTimer.skip()
             repository.startEmpty()
             _pendingResume.value = null
             startService()
@@ -134,6 +137,7 @@ class WorkoutViewModel @JvmOverloads constructor(
     fun startRoutine(routineId: Long) {
         viewModelScope.launch {
             val contents = routines.load(routineId) ?: return@launch
+            RestTimer.skip()
             repository.startFromRoutine(contents)
             _pendingResume.value = null
             startService()
@@ -141,14 +145,18 @@ class WorkoutViewModel @JvmOverloads constructor(
     }
 
     fun resumePending() {
+        if (_pendingResume.value == null) return
         _pendingResume.value = null
-        startService()
+        WorkoutSession.confirmedInThisProcess = true
+        RestTimer.restore()
+        ensureService()
     }
 
     fun discardPending() {
         val workout = _pendingResume.value ?: return
         viewModelScope.launch {
             repository.discard(workout.id)
+            RestTimer.skip()
             _pendingResume.value = null
         }
     }
