@@ -34,9 +34,14 @@ class HistoryViewModel @JvmOverloads constructor(
     val workouts: StateFlow<List<WorkoutSummary>?> = repository.observeHistory()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
-    /** Records over all history by workout id, recalculated whenever a workout changes. */
-    val records: StateFlow<Map<Long, List<PersonalRecord>>> = repository.observeRecords()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+    private val _editing = MutableStateFlow(false)
+    val editing: StateFlow<Boolean> = _editing.asStateFlow()
+
+    /** Records are paused during editing and stop immediately when neither history screen is visible. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val records: StateFlow<Map<Long, List<PersonalRecord>>> = _editing
+        .flatMapLatest { editing -> if (editing) flowOf(emptyMap()) else repository.observeRecords() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyMap())
 
     private val _openId = MutableStateFlow<Long?>(null)
     val openId: StateFlow<Long?> = _openId.asStateFlow()
@@ -45,9 +50,6 @@ class HistoryViewModel @JvmOverloads constructor(
     val opened: StateFlow<ActiveWorkout?> = _openId
         .flatMapLatest { id -> id?.let { repository.observeWorkout(it) } ?: flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    private val _editing = MutableStateFlow(false)
-    val editing: StateFlow<Boolean> = _editing.asStateFlow()
 
     private var openJob: Job? = null
 

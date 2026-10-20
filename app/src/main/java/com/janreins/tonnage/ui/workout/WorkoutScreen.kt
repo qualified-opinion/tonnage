@@ -52,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -263,13 +264,6 @@ private fun ActiveWorkoutScreen(
     onAddExercise: () -> Unit,
     modifier: Modifier,
 ) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(1000)
-        }
-    }
     var renaming by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     // Keep the screen on while logging, so it doesn't lock between sets.
@@ -278,9 +272,8 @@ private fun ActiveWorkoutScreen(
         view.keepScreenOn = true
         onDispose { view.keepScreenOn = false }
     }
-    val summary = WorkoutStats.summarize(active.blocks, active.workout.startedAt, now)
-
-    val actions = run {
+    val currentActive by rememberUpdatedState(active)
+    val actions = remember(viewModel) {
         SetActions(
             onWeight = viewModel::setWeight,
             onReps = viewModel::setReps,
@@ -289,7 +282,7 @@ private fun ActiveWorkoutScreen(
             onType = viewModel::setType,
             onDelete = viewModel::deleteSet,
             onToggle = { set ->
-                active.blocks.firstOrNull { b -> b.sets.any { it.id == set.id } }?.let { viewModel.toggleCompleted(it, set) }
+                currentActive.blocks.firstOrNull { b -> b.sets.any { it.id == set.id } }?.let { viewModel.toggleCompleted(it, set) }
             },
         )
     }
@@ -302,11 +295,7 @@ private fun ActiveWorkoutScreen(
                 title = {
                     Column(Modifier.clickable { renaming = true }) {
                         Text(active.workout.title, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "${Format.duration(summary.durationMs)} · ${Format.volume(summary.volumeKg)} · ${summary.completedSets} sets",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        WorkoutSubtitle(active)
                     }
                 },
                 actions = {
@@ -370,6 +359,24 @@ private fun ActiveWorkoutScreen(
             dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Keep going") } },
         )
     }
+}
+
+/** Only the subtitle reads the ticking clock; exercise cards do not depend on it. */
+@Composable
+private fun WorkoutSubtitle(active: ActiveWorkout) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val summary = WorkoutStats.summarize(active.blocks, active.workout.startedAt, now)
+    Text(
+        "${Format.duration(summary.durationMs)} · ${Format.volume(summary.volumeKg)} · ${summary.completedSets} sets",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

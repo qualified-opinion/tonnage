@@ -10,6 +10,10 @@ import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.ui.history.HistoryViewModel
+import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.PrKind
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
@@ -100,6 +104,34 @@ class HistoryViewModelTest {
         model.close()
         dispatcher.scheduler.runCurrent()
         assertNull(model.openId.value)
+    }
+
+    @Test fun recordsPauseDuringEditingAndResumeWithTheLatestValuesAfterDone() = runTest {
+        suspend fun finishBench(weight: Double): Long {
+            val id = startWorkout()
+            val set = workouts.observeActive().first()!!.blocks.single().sets.single()
+            workouts.setWeight(set.id, weight)
+            workouts.setReps(set.id, 5)
+            workouts.setCompleted(set.id, true)
+            workouts.finish(id)
+            return id
+        }
+        finishBench(50.0)
+        val id = finishBench(60.0)
+        openAndWait(id)
+        val emissions = mutableListOf<Map<Long, List<PersonalRecord>>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.records.collect { emissions += it } }
+        model.records.first { it[id]?.any { r -> r.kind == PrKind.HEAVIEST_WEIGHT && r.value == 60.0 } == true }
+        model.startEditing()
+        model.records.first { it.isEmpty() }
+        val count = emissions.size
+        val set = db.workoutDao().observeSetsForWorkout(id).first().single()
+        listOf(61.0, 62.0, 65.0).forEach { workouts.setWeight(set.id, it) }
+        dispatcher.scheduler.runCurrent()
+        assertEquals(count, emissions.size)
+        model.finishEditing()
+        val updated = model.records.first { it[id]?.any { r -> r.kind == PrKind.HEAVIEST_WEIGHT && r.value == 65.0 } == true }
+        assertEquals(50.0, updated.getValue(id).single { it.kind == PrKind.HEAVIEST_WEIGHT }.previous, 0.0)
     }
 
 }
