@@ -165,4 +165,78 @@ class WorkoutStatsTest {
         assertEquals(PrKind.MOST_REPS, record.kind)
         assertEquals(10.0, record.previous, 0.0)
     }
+    @Test
+    fun repeatedExerciseBlocksProduceOneRecordPerKind() {
+        val blocks = listOf(
+            block(bench, 1, set(105.0, 3)),
+            block(bench, 2, set(102.5, 10), set(200.0, 10, type = SetType.WARMUP), set(150.0, 10, completed = false)),
+        )
+        val records = WorkoutStats.detectRecords(blocks, listOf(PastSet("bench", 100.0, 5)))
+        assertEquals(2, records.size)
+        assertEquals(105.0, records.single { it.kind == PrKind.HEAVIEST_WEIGHT }.value, 0.0)
+        assertEquals(136.6666667, records.single { it.kind == PrKind.BEST_ONE_REP_MAX }.value, 0.001)
+    }
+
+    @Test
+    fun missingOrZeroWeightDoesNotEstablishAWeightedRecordBaseline() {
+        listOf<Double?>(null, 0.0).forEach { weight ->
+            val prior = recordSet(1, 1, bench, 10, weight, 10)
+            val firstWeighted = recordSet(2, 2, bench, 20, 60.0, 5)
+            assertTrue(WorkoutStats.recordsByWorkout(listOf(prior, firstWeighted)).isEmpty())
+            assertTrue(WorkoutStats.detectRecords(listOf(block(bench, 1, set(60.0, 5))), listOf(PastSet("bench", weight, 10))).isEmpty())
+            val later = recordSet(3, 3, bench, 30, 65.0, 6)
+            assertEquals(setOf(PrKind.HEAVIEST_WEIGHT, PrKind.BEST_ONE_REP_MAX),
+                WorkoutStats.recordsByWorkout(listOf(prior, firstWeighted, later)).getValue(3).map { it.kind }.toSet())
+        }
+    }
+
+    @Test
+    fun bodyweightRecordsAlsoNeedAnEarlierPositiveValue() {
+        val zero = recordSet(1, 1, pullup, 10, null, 0)
+        val first = recordSet(2, 2, pullup, 20, null, 10)
+        assertTrue(WorkoutStats.recordsByWorkout(listOf(zero, first)).isEmpty())
+        assertTrue(WorkoutStats.detectRecords(listOf(block(pullup, 1, set(null, 10))), listOf(PastSet("pullup", null, 0))).isEmpty())
+        val later = recordSet(3, 3, pullup, 30, null, 11)
+        assertEquals(10.0, WorkoutStats.recordsByWorkout(listOf(zero, first, later)).getValue(3).single().previous, 0.0)
+    }
+
+    @Test
+    fun sixWorkoutHistoryKeepsItsEstablishedRecordsAndMatchesFinishPreviews() {
+        val squat = bench.copy(id = "squat", name = "Squat")
+        val exercises = listOf(bench, squat, pullup)
+        val sessions = listOf(
+            listOf(60.0 to 8, 80.0 to 5, null to 6),
+            listOf(62.5 to 8, 80.0 to 6, null to 7),
+            listOf(62.5 to 6, 82.5 to 4, null to 7),
+            listOf(65.0 to 5, 82.5 to 6, null to 8),
+            listOf(60.0 to 10, 80.0 to 8, null to 6),
+            listOf(67.5 to 6, 85.0 to 5, null to 9),
+        )
+        val rows = sessions.flatMapIndexed { index, values -> values.mapIndexed { e, (kg, reps) ->
+            recordSet(index + 1L, index + 1L, exercises[e], (index + 1L) * 10 + e, kg, reps)
+        } }
+        val heaviest = PrKind.HEAVIEST_WEIGHT
+        val estimate = PrKind.BEST_ONE_REP_MAX
+        val reps = PrKind.MOST_REPS
+        // Fixed expected badges for ordinary positive history, also valid before this fix.
+        val expected = listOf(
+            emptyList(),
+            listOf("bench" to heaviest, "bench" to estimate, "squat" to estimate, "pullup" to reps),
+            listOf("squat" to heaviest),
+            listOf("bench" to heaviest, "squat" to estimate, "pullup" to reps),
+            listOf("bench" to estimate, "squat" to estimate),
+            listOf("bench" to heaviest, "bench" to estimate, "squat" to heaviest, "pullup" to reps),
+        )
+        val history = WorkoutStats.recordsByWorkout(rows.chunked(3).reversed().flatten())
+        sessions.forEachIndexed { index, values ->
+            val id = index + 1L
+            val records = history[id].orEmpty()
+            assertEquals("Workout $id", expected[index], records.map { it.exerciseId to it.kind })
+            val blocks = values.mapIndexed { e, (kg, count) -> block(exercises[e], e + 1L, set(kg, count)) }
+            val past = rows.filter { it.workoutId < id }.map { PastSet(it.exerciseId, it.weightKg, it.reps) }
+            assertEquals(records.map { it.copy(setId = 0) }, WorkoutStats.detectRecords(blocks, past))
+            assertTrue(records.all { it.previous > 0 && it.value > it.previous })
+        }
+    }
+
 }
