@@ -1,6 +1,10 @@
 package com.janreins.tonnage
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.AssetManager
+import com.janreins.tonnage.data.settings.SettingsStore
+import java.io.IOException
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -29,6 +33,7 @@ class ExerciseDaoTest {
 
     @Before
     fun setUp() {
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().clear().commit()
         db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
         repository = ExerciseRepository(db)
     }
@@ -85,4 +90,33 @@ class ExerciseDaoTest {
 
         assertEquals(listOf("Barbell_Squat"), repository.observeAll().first().map { it.id })
     }
+    @Test
+    fun libraryIsReadOncePerVersionAndAnUpdateAddsMissingBuiltIns() = runTest {
+        var assetReads = 0
+        val counting = object : ContextWrapper(context) {
+            override fun getAssets(): AssetManager { assetReads++; return super.getAssets() }
+        }
+        repository.seedLibrary(counting, versionCode = 1)
+        ExerciseRepository(db).seedLibrary(counting, versionCode = 1)
+        assertEquals(1, assetReads)
+        assertEquals(876, db.exerciseDao().builtInCount())
+        db.openHelper.writableDatabase.execSQL("DELETE FROM exercises WHERE id = 'Plank'")
+        repository.seedLibrary(counting, versionCode = 2)
+        assertEquals(2, assetReads)
+        assertEquals(876, db.exerciseDao().builtInCount())
+        assertEquals(2, SettingsStore(context).librarySeedVersion)
+    }
+
+    @Test
+    fun aFailedSeedIsRetriedInsteadOfRememberedAsSuccessful() = runTest {
+        repository.seedLibrary(context, versionCode = 1)
+        val broken = object : ContextWrapper(context) {
+            override fun getAssets(): AssetManager = throw IOException("Asset unavailable")
+        }
+        assertTrue(runCatching { repository.seedLibrary(broken, versionCode = 2) }.isFailure)
+        assertEquals(1, SettingsStore(context).librarySeedVersion)
+        repository.seedLibrary(context, versionCode = 2)
+        assertEquals(2, SettingsStore(context).librarySeedVersion)
+    }
+
 }

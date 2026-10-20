@@ -53,6 +53,12 @@ class SettingsStore internal constructor(context: Context) {
         if (hevyImportZone == null) prefs.edit(commit = true) { putString(KEY_HEVY_ZONE, zoneId) }
     }
 
+    internal val librarySeedVersion: Int get() = prefs.getInt(KEY_LIBRARY_VERSION, -1)
+
+    internal fun setLibrarySeedVersion(versionCode: Int) {
+        prefs.edit(commit = true) { putInt(KEY_LIBRARY_VERSION, versionCode) }
+    }
+
     companion object {
         const val DEFAULT_REST_SECONDS = 90
         val REST_OPTIONS = listOf(0, 30, 45, 60, 90, 120, 150, 180, 240, 300)
@@ -60,6 +66,7 @@ class SettingsStore internal constructor(context: Context) {
         private const val KEY_HEVY_ZONE = "hevy_import_zone"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_LAST_BACKUP = "last_backup_at"
+        private const val KEY_LIBRARY_VERSION = "library_seed_version"
 
         @Volatile
         private var instance: SettingsStore? = null

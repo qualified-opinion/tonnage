@@ -1,6 +1,8 @@
 package com.janreins.tonnage.data.repository
 
 import android.content.Context
+import com.janreins.tonnage.BuildConfig
+import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.local.ExerciseSeed
 import com.janreins.tonnage.data.model.Exercise
@@ -20,16 +22,26 @@ class ExerciseRepository(database: AppDatabase) {
 
     /**
      * Adds every bundled exercise the phone doesn't have yet, so a newer app's library reaches
-     * existing installs. Rows already there (built-in or custom) are left alone. Run every launch.
+     * existing installs. Rows already there (built-in or custom) are left alone. Seed once per app version.
      */
-    suspend fun seedLibrary(context: Context) = withContext(Dispatchers.IO) {
-        val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
-        addMissingBuiltIns(ExerciseSeed.parse(json))
+    suspend fun seedLibrary(context: Context, versionCode: Int = BuildConfig.VERSION_CODE) = withContext(Dispatchers.IO) {
+        val settings = SettingsStore.get(context)
+        if (settings.librarySeedVersion != versionCode) {
+            val json = context.assets.open(ExerciseSeed.ASSET_NAME).bufferedReader().use { it.readText() }
+            addMissingBuiltIns(ExerciseSeed.parse(json))
+            settings.setLibrarySeedVersion(versionCode)
+        } else {
+            repairTracking()
+        }
     }
 
     /** Inserts the built-ins in [library] whose id is missing; [ExerciseDao.insertAll] ignores the rest. */
     internal suspend fun addMissingBuiltIns(library: List<Exercise>) = withContext(Dispatchers.IO) {
         dao.insertAll(library.filterNot { it.isCustom })
+        repairTracking()
+    }
+
+    private suspend fun repairTracking() {
         // Safe on every start: after the first repair this updates no rows.
         ExerciseSeed.trackingOverrides.entries.groupBy({ it.value }, { it.key }).forEach { (type, ids) ->
             importDao.repairBuiltInTracking(ids, type)

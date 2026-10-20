@@ -1,6 +1,14 @@
 package com.janreins.tonnage
 
 import android.app.Application
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.pm.ProviderInfo
+import android.database.MatrixCursor
+import android.os.Bundle
+import android.provider.DocumentsContract
+import org.robolectric.shadows.ShadowContentResolver
+import java.io.OutputStream
 import android.net.Uri
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
@@ -172,6 +180,62 @@ class DataViewModelTest {
         val saved = SettingsStore.get(application).lastBackupAt.value
         assertTrue("Last backup time $saved should be at least $before", saved != null && saved >= before)
         assertEquals(saved, BackupJson.read(out.toString(Charsets.UTF_8.name())).exportedAt)
+    }
+
+
+    private class BackupProvider(private val refuseDelete: Boolean = false) : ContentProvider() {
+        var exists = true
+        override fun onCreate() = true
+        override fun getType(uri: Uri) = "application/json"
+        override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?) =
+            MatrixCursor(arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID)).apply { if (exists) addRow(arrayOf("backup.json")) }
+        override fun insert(uri: Uri, values: ContentValues?): Uri? = error("Unused")
+        override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = error("Unused")
+        override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = error("Use DocumentsContract")
+        override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
+            check(method == "android:deleteDocument")
+            if (refuseDelete) throw UnsupportedOperationException("Provider refused deletion")
+            exists = false
+            return Bundle()
+        }
+    }
+
+    private fun backupDocument(refuseDelete: Boolean = false): Uri {
+        val provider = BackupProvider(refuseDelete)
+        provider.attachInfo(application, ProviderInfo().apply { authority = "backup.test" })
+        ShadowContentResolver.registerProviderInternal("backup.test", provider)
+        return DocumentsContract.buildDocumentUri("backup.test", "backup.json")
+    }
+
+    private fun documentCount(uri: Uri) = application.contentResolver.query(uri, null, null, null, null)!!.use { it.count }
+
+    @Test
+    fun oversizedBackupExportDeletesThePickerCreatedDocument() {
+        val uri = backupDocument()
+        assertEquals(1, documentCount(uri))
+        val lastBackup = SettingsStore.get(application).lastBackupAt.value
+        // Exercise the real size check without allocating a 50 MB history in the test.
+        model = DataViewModel(application) { BackupJson.encode(it, limit = 0) }
+        store.put("data", model)
+        model.saveBackup(uri)
+        awaitCondition { model.backupState.value is BackupState.Failed }
+        assertTrue((model.backupState.value as BackupState.Failed).message.contains("too large"))
+        assertEquals(0, documentCount(uri))
+        assertEquals(lastBackup, SettingsStore.get(application).lastBackupAt.value)
+    }
+
+    @Test
+    fun failedWritesDeleteTheDocumentAndDeletionFailuresDoNotMaskTheError() {
+        listOf(false, true).forEach { refuseDelete ->
+            val uri = backupDocument(refuseDelete)
+            shadowOf(application.contentResolver).registerOutputStream(uri, object : OutputStream() {
+                override fun write(value: Int) { throw IOException("Disk full") }
+            })
+            model.saveBackup(uri)
+            awaitCondition { model.backupState.value is BackupState.Failed }
+            assertTrue((model.backupState.value as BackupState.Failed).message.contains("Disk full"))
+            assertEquals(if (refuseDelete) 1 else 0, documentCount(uri))
+        }
     }
 
     private fun sizedStream(size: Int): InputStream = object : InputStream() {

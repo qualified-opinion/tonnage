@@ -2,6 +2,7 @@ package com.janreins.tonnage.ui.data
 
 import android.app.Application
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.tonnage.data.backup.BackupContents
@@ -27,6 +28,7 @@ import com.janreins.tonnage.data.settings.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +62,10 @@ sealed interface BackupState {
 }
 
 /** Hevy import plus JSON backup and restore: the More tab's data tools. */
-class DataViewModel(application: Application) : AndroidViewModel(application) {
+class DataViewModel @JvmOverloads constructor(
+    application: Application,
+    private val encodeBackup: (BackupContents) -> ByteArray = { BackupJson.encode(it) },
+) : AndroidViewModel(application) {
     private val db = AppDatabase.getInstance(application)
     private val settings = SettingsStore.get(application)
     private val importer = ImportRepository(db, settings)
@@ -162,14 +167,16 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
     fun saveBackup(uri: Uri) {
         _backup.value = BackupState.Working
         viewModelScope.launch {
+            var written = false
             _backup.value = try {
                 val contents = backups.export(settings.defaultRestSeconds.value)
                 withContext(Dispatchers.IO) {
-                    val bytes = BackupJson.encode(contents)
+                    val bytes = encodeBackup(contents)
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
                         it.write(bytes)
                     } ?: throw IllegalStateException("Couldn't create the file.")
                 }
+                written = true
                 settings.setLastBackupAt(contents.exportedAt)
                 BackupState.Saved(contents.workouts.size)
             } catch (e: CancellationException) {
@@ -178,6 +185,11 @@ class DataViewModel(application: Application) : AndroidViewModel(application) {
                 BackupState.Failed(e.message!!)
             } catch (e: Exception) {
                 BackupState.Failed("The backup couldn't be saved: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                if (!written) withContext(NonCancellable + Dispatchers.IO) {
+                    // The picker already created a document, even if encoding never opened it.
+                    runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
+                }
             }
         }
     }
