@@ -97,3 +97,10 @@ dependencies {
 ksp {
   arg("room.schemaLocation", "$projectDir/schemas")
 }
+
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+  if (name == "testDebugUnitTest") {
+    // Keep the CI timing report when Gradle restores cached test results.
+    outputs.file(layout.buildDirectory.file("reports/records-guard.txt"))
+  }
+}

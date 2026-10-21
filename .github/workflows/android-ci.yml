@@ -54,6 +54,9 @@ jobs:
       - name: Verify release build
         run: ./gradlew assembleRelease
 
+      - name: Report release APK size
+        run: stat --printf='%n %s bytes\n' app/build/outputs/apk/release/*.apk
+
       # The committed schema must match the entities, so every schema change lands with its JSON
       # (and a migration test). On failure the log prints the generated file to commit.
       - name: Check Room schemas are committed
