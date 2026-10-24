@@ -116,7 +116,7 @@ Since 2026-10-19 one AI agent builds and Claude reviews; the owner merges.
 1. **Pick:** the owner gives the builder agent one issue from the work order in tracking issue #25 (or says "the next one"). Starter prompt: `docs/plan/BUILDER.md`.
 2. **Build:** the builder branches from `main`, does only that issue, adds a test that fails on the old code, and opens one PR against `main` with `Closes #NN`, using the PR template. CI must be green.
 3. **Review:** the owner pastes the PR link to Claude in the Tonnage project. Claude reviews against the issue and `docs/plan/REVIEW.md`, posts the verdict on the PR ("approve" or "changes needed", blockers first), and gives the owner a plain summary. The builder fixes comments with new commits; Claude re-checks only those.
-4. **Merge:** the owner merges once Claude approves and CI is green. The issue closes and #25 ticks itself.
+4. **Merge:** the owner merges once Claude approves and CI is green. The issue closes, and the reviewer ticks it off in #25.
 5. **Release:** only when the owner says "publish X.Y.Z" (see `HANDOVER.md`).
 6. **Never** (anyone): push to `main`, force-push a reviewed branch, tag or release without the owner, add network access, or use a destructive migration.
 7. **Docs:** builders don't edit the status table here (it caused merge conflicts); the tracking issue is the live status, and the reviewer refreshes this file every few merges. Builders still update `AGENTS.md` when a convention changes.

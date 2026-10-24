@@ -32,7 +32,7 @@ If no issue number is given, take the **first open issue in the work order** of 
 - PR size under about 300 changed lines. One issue per PR. No drive-by refactors or formatting changes.
 - Never commit secrets, keystores, `local.properties` or build output. Don't print the signing secrets.
 - Don't rename `.github/workflows/android-release.yml` (`versionCode` is its run number).
-- Don't edit the status table in `docs/plan/ROADMAP.md`; the tracking issue #25 ticks itself off when your PR merges. Do update `AGENTS.md` when you change a convention it describes.
+- Don't edit the status table in `docs/plan/ROADMAP.md`; the reviewer ticks the tracking issue #25 after your PR merges. Do update `AGENTS.md` when you change a convention it describes.
 - Never merge, tag or publish a release.
 
 ## When you're stuck
