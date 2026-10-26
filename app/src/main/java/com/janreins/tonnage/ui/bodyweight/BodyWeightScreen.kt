@@ -38,6 +38,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.BodyWeight
@@ -96,7 +97,7 @@ fun BodyWeightScreen(
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedButton(onClick = { picking = true }) {
-                        Text(if (date == today) "Today" else date.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())))
+                        Text(if (date == today) "Today" else date.format(DateTimeFormatter.ofPattern("d MMM", LocalLocale.current.platformLocale)))
                     }
                 }
                 Button(

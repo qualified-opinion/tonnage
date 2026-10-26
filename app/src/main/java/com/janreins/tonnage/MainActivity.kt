@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -71,7 +72,6 @@ import com.janreins.tonnage.ui.workout.WorkoutTab
 import com.janreins.tonnage.ui.workout.WorkoutViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT, IMPORT_MATCH }
 
@@ -378,7 +378,7 @@ private fun MainTabs(tab: MainTab, onTabChange: (MainTab) -> Unit, content: @Com
 
 @Composable
 private fun ResumeDialog(workout: Workout, onResume: () -> Unit, onDiscard: () -> Unit) {
-    val started = SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(workout.startedAt))
+    val started = SimpleDateFormat("EEE d MMM, HH:mm", LocalLocale.current.platformLocale).format(Date(workout.startedAt))
     val elapsed = Format.duration(System.currentTimeMillis() - workout.startedAt)
     var confirmDiscard by remember { mutableStateOf(false) }
     AlertDialog(

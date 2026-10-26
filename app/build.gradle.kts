@@ -6,7 +6,7 @@ plugins {
 
 android {
   namespace = "com.janreins.tonnage"
-  compileSdk = 35
+  compileSdk = 37
 
   defaultConfig {
     applicationId = "com.janreins.tonnage"
