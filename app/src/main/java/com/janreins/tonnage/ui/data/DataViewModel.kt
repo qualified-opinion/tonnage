@@ -5,11 +5,13 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.backup.BackupContents
 import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
 import com.janreins.tonnage.data.backup.BackupTooLargeException
+import com.janreins.tonnage.data.backup.WorkoutCsv
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
 import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HevyFormatException
@@ -27,6 +29,7 @@ import com.janreins.tonnage.data.repository.ImportResult
 import com.janreins.tonnage.data.settings.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,11 +38,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.ZoneId
 
 /** The Hevy import, step by step. */
 sealed interface ImportState {
@@ -55,6 +61,7 @@ sealed interface ImportState {
 sealed interface BackupState {
     data object Working : BackupState
     data class Saved(val workouts: Int) : BackupState
+    data class Exported(val workouts: Int) : BackupState
     /** A backup was read and is waiting for the user to confirm replacing everything. */
     data class ConfirmRestore(val contents: BackupContents) : BackupState
     data class Restored(val workouts: Int) : BackupState
@@ -169,9 +176,8 @@ class DataViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             var written = false
             _backup.value = try {
-                val contents = backups.export(settings.defaultRestSeconds.value, settings.themeMode.value, settings.hevyImportZone)
+                val (contents, bytes) = backups.exportFile(settings, encodeBackup)
                 withContext(Dispatchers.IO) {
-                    val bytes = encodeBackup(contents)
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
                         it.write(bytes)
                     } ?: throw IllegalStateException("Couldn't create the file.")
@@ -188,6 +194,34 @@ class DataViewModel @JvmOverloads constructor(
             } finally {
                 if (!written) withContext(NonCancellable + Dispatchers.IO) {
                     // The picker already created a document, even if encoding never opened it.
+                    runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
+                }
+            }
+        }
+    }
+
+    /** Writes every finished workout as a CSV spreadsheet, one row per set. */
+    fun exportCsv(uri: Uri) {
+        _backup.value = BackupState.Working
+        viewModelScope.launch {
+            var written = false
+            _backup.value = try {
+                val contents = backups.export(settings.defaultRestSeconds.value)
+                val library = db.exerciseDao().observeAll().first().associateBy { it.id }
+                withContext(Dispatchers.IO) {
+                    val bytes = WorkoutCsv.write(contents, library, ZoneId.systemDefault()).toByteArray(Charsets.UTF_8)
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(bytes)
+                    } ?: throw IllegalStateException("Couldn't create the file.")
+                }
+                written = true
+                BackupState.Exported(contents.workouts.size)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BackupState.Failed("The spreadsheet couldn't be saved: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                if (!written) withContext(NonCancellable + Dispatchers.IO) {
                     runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
                 }
             }
@@ -231,6 +265,24 @@ class DataViewModel @JvmOverloads constructor(
             }
         }
     }
+
+    // Automatic backup
+
+    val autoBackupFolder: StateFlow<String?> = settings.autoBackupFolder
+    val autoBackupError: StateFlow<String?> = settings.autoBackupError
+
+    /** The chosen folder's name, read off the main thread. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val autoBackupFolderName: StateFlow<String?> = settings.autoBackupFolder
+        .mapLatest { folder -> folder?.let { withContext(Dispatchers.IO) { AutoBackup.folderName(getApplication(), it) } } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun chooseAutoBackupFolder(treeUri: Uri) {
+        runCatching { AutoBackup.choose(getApplication(), treeUri) }
+            .onFailure { _backup.value = BackupState.Failed("That folder can't be used for automatic backups. Pick another one.") }
+    }
+
+    fun turnOffAutoBackup() = AutoBackup.turnOff(getApplication())
 
     fun dismissBackup() {
         if (_backup.value is BackupState.Working) return

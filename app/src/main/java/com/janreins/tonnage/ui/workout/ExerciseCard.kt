@@ -49,6 +49,8 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.Format
+import com.janreins.tonnage.domain.Progression
+import com.janreins.tonnage.domain.ProgressionHint
 import com.janreins.tonnage.domain.WorkoutStats
 
 /** What the set row edits for each way of logging an exercise. */
@@ -86,7 +88,8 @@ class SetActions(
 
 /**
  * One exercise with its sets. [previous] adds the "previous" column (what was done last time,
- * tap to copy); the routine editor leaves it out and hides the tick boxes with [showCheck].
+ * tap to copy) and, when last time allows, a progression hint (tap to fill [onUseHint]); the
+ * routine editor leaves both out and hides the tick boxes with [showCheck].
  */
 @Composable
 fun ExerciseCard(
@@ -98,6 +101,7 @@ fun ExerciseCard(
     modifier: Modifier = Modifier,
     previous: List<WorkoutSet>? = null,
     onUsePrevious: (set: WorkoutSet, previous: WorkoutSet) -> Unit = { _, _ -> },
+    onUseHint: (ProgressionHint) -> Unit = {},
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
     showCheck: Boolean = true,
@@ -105,6 +109,11 @@ fun ExerciseCard(
     val fields = fieldsFor(block.trackingType)
     val labels = WorkoutStats.setLabels(block.sets)
     var confirmRemove by remember { mutableStateOf(false) }
+    val hint = remember(previous, block.trackingType, block.plannedSets) {
+        previous?.let { Progression.hint(it, block.trackingType, block.plannedSets) }
+    }
+    // Tapping the hint pushes its numbers into the sets it fills, even a cell being typed in.
+    var hintFill by remember { mutableStateOf<Pair<Int, Map<Long, WorkoutSet>>?>(null) }
     Column(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -143,6 +152,21 @@ fun ExerciseCard(
                 }
             }
         }
+        if (hint != null) {
+            Text(
+                hint.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClickLabel = "Fill sets with suggestion") {
+                        val targets = Progression.fillTargets(block).associate { it.id to Progression.applied(it, hint) }
+                        hintFill = ((hintFill?.first ?: 0) + 1) to targets
+                        onUseHint(hint)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -170,6 +194,7 @@ fun ExerciseCard(
                     trackingType = block.trackingType,
                     onUsePrevious = onUsePrevious,
                     showCheck = showCheck,
+                    hintFill = hintFill?.let { (count, targets) -> targets[set.id]?.let { count to it } },
                 )
             }
         }
@@ -241,6 +266,7 @@ private fun SetRow(
     trackingType: TrackingType,
     onUsePrevious: (WorkoutSet, WorkoutSet) -> Unit,
     showCheck: Boolean,
+    hintFill: Pair<Int, WorkoutSet>?,
 ) {
     val colors = MaterialTheme.colorScheme
     // Tapping "previous" pushes its numbers into the cells, even one that is being typed in.
@@ -248,6 +274,9 @@ private fun SetRow(
     // A tick may fill an empty set from last time. Push the saved values even into focused cells.
     LaunchedEffect(set.completed) {
         if (set.completed) fill = ((fill?.first ?: 0) + 1) to set
+    }
+    LaunchedEffect(hintFill) {
+        hintFill?.let { fill = ((fill?.first ?: 0) + 1) to it.second }
     }
     val rowColor = if (set.completed) colors.primaryContainer.copy(alpha = 0.45f) else colors.surface
     Row(

@@ -12,6 +12,8 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.model.WorkoutSummary
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.Progression
+import com.janreins.tonnage.domain.ProgressionHint
 import com.janreins.tonnage.domain.SetInput
 import com.janreins.tonnage.domain.WorkoutStats
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -183,6 +185,17 @@ class WorkoutRepository(
     /** Fills a set with the numbers from another (tapping a "previous" value). */
     suspend fun copyValues(setId: Long, from: WorkoutSet) = write {
         workoutDao.updateValues(setId, from.weightKg, from.reps, from.distanceKm, from.durationSec)
+    }
+
+    /**
+     * Fills the unticked working sets of [block] that are blank or an untouched plan with the
+     * hint's numbers. Ticked sets, warm-ups and typed values are left alone. Returns how many changed.
+     */
+    suspend fun fillHint(block: ExerciseBlock, hint: ProgressionHint): Int = write {
+        val current = block.copy(sets = workoutDao.getSets(block.workoutExercise.id))
+        val filled = Progression.fillTargets(current).map { Progression.applied(it, hint) }
+        workoutDao.updateAllValues(filled)
+        filled.size
     }
 
     suspend fun setCompleted(setId: Long, completed: Boolean) = write {

@@ -29,6 +29,7 @@ import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.ExerciseOptions
 import com.janreins.tonnage.domain.ExerciseSession
 import com.janreins.tonnage.ui.progress.ExerciseProgressSection
+import com.janreins.tonnage.ui.progress.RecentSessionsCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +69,7 @@ fun ExerciseDetailScreen(
         ) {
             if (progress.isNotEmpty()) {
                 item { ExerciseProgressSection(progress, exercise.trackingType) }
+                item { RecentSessionsCard(progress, exercise.trackingType) }
             }
             item { Fact("Primary muscles", exercise.primaryMuscleList.joinToString(", ") { ExerciseOptions.display(it) }) }
             if (exercise.secondaryMuscleList.isNotEmpty()) {

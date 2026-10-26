@@ -3,6 +3,7 @@ package com.janreins.tonnage.ui.workout
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
@@ -13,6 +14,7 @@ import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.ProgressionHint
 import com.janreins.tonnage.domain.SessionSummary
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.service.WorkoutService
@@ -188,6 +190,10 @@ class WorkoutViewModel @JvmOverloads constructor(
         viewModelScope.launch { repository.copyValues(set.id, previous) }
     }
 
+    fun useHint(block: ExerciseBlock, hint: ProgressionHint) {
+        viewModelScope.launch { repository.fillHint(block, hint) }
+    }
+
     fun setRest(block: ExerciseBlock, seconds: Int) {
         viewModelScope.launch { repository.setRest(block.workoutExercise.id, seconds) }
     }
@@ -265,6 +271,7 @@ class WorkoutViewModel @JvmOverloads constructor(
         val workout = active.value?.workout ?: return
         viewModelScope.launch {
             repository.finish(workout.id)
+            AutoBackup.afterWorkoutSaved(getApplication())
             endSession()
             onSaved()
         }
@@ -276,6 +283,7 @@ class WorkoutViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             repository.completeFilled(current.blocks, enteredOnly = true)
             repository.finish(current.workout.id)
+            AutoBackup.afterWorkoutSaved(getApplication())
             endSession()
             onSaved()
         }
