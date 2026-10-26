@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.TableChart
@@ -75,6 +76,7 @@ fun SettingsScreen(
     lastBackupAt: Long?,
     backupState: BackupState?,
     autoBackup: AutoBackupInfo,
+    onOpenBodyWeight: () -> Unit,
     data: DataActions,
     modifier: Modifier = Modifier,
 ) {
@@ -130,6 +132,12 @@ fun SettingsScreen(
                     }
                 }
             }
+            ListItem(
+                modifier = Modifier.clickable(onClick = onOpenBodyWeight),
+                leadingContent = { Icon(Icons.Filled.MonitorWeight, contentDescription = null) },
+                headlineContent = { Text("Body weight") },
+                supportingContent = { Text("Log your weight; the Progress tab charts it") },
+            )
             HorizontalDivider()
             Text(
                 "Your data",

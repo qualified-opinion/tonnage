@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.janreins.tonnage.data.local.AppDatabase
+import com.janreins.tonnage.data.model.BodyWeight
 import com.janreins.tonnage.domain.ExerciseProgress
 import com.janreins.tonnage.domain.ExerciseSession
 import com.janreins.tonnage.domain.MilestoneReport
@@ -14,6 +15,7 @@ import com.janreins.tonnage.domain.Streak
 import com.janreins.tonnage.domain.WeekStats
 import com.janreins.tonnage.domain.WorkoutStart
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -82,6 +84,11 @@ class ProgressViewModel @JvmOverloads constructor(
         )
     }.flowOn(dispatcher).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Body weight entries (oldest first) and today's date in the same zone as everything else here. */
+    val bodyWeight: StateFlow<BodyWeightLog> = combine(database.bodyWeightDao().observeAll(), time) { entries, (now, zone) ->
+        BodyWeightLog(entries, Instant.ofEpochMilli(now).atZone(zone).toLocalDate())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BodyWeightLog(emptyList(), LocalDate.now()))
+
     /** Re-read both wall time and the phone's zone, and reschedule midnight after a resume. */
     fun refresh() { resumes.tryEmit(Unit) }
 
@@ -101,6 +108,8 @@ class ProgressViewModel @JvmOverloads constructor(
     fun sessions(exerciseId: String): Flow<List<ExerciseSession>> =
         sets.map { Progress.sessions(it, exerciseId) }.flowOn(Dispatchers.Default)
 }
+
+data class BodyWeightLog(val entries: List<BodyWeight>, val today: LocalDate)
 
 internal data class ProgressTime(val now: Long, val zone: ZoneId)
 
