@@ -1,6 +1,6 @@
 # Tonnage handover
 
-Read this, then `AGENTS.md` (the rules) and `docs/plan/ROADMAP.md` (status and what is next), before changing anything. This file says how the app is put together and how it gets built and released. The roadmap says what to work on, and its GitHub tracking issue (#25) lists the remaining PRs as self-contained issues.
+Read this, then `AGENTS.md` (the rules) and `docs/plan/ROADMAP.md` (status and what is next), before changing anything. This file says how the app is put together and how it gets built and released. The roadmap says what to work on, and its GitHub tracking issue (#65) lists the remaining PRs as self-contained issues.
 
 ## The short version
 - **What it is:** a private, offline strength logger for Android that replaces Hevy, minus the social features. One user (the owner, Jan), data on the phone only.
@@ -82,4 +82,4 @@ The full list is in `AGENTS.md`. The ones most likely to cause damage if missed:
 - Every fix gets a test that fails on the old code. Every batch PR updates `docs/plan/ROADMAP.md`, and `AGENTS.md` when a convention changes.
 
 ## Starting a session
-Builders start with `docs/plan/BUILDER.md` (it has the starter prompt) and do one issue from tracking issue #25 per PR. Reviews follow `docs/plan/REVIEW.md`; the owner merges.
+Builders start with `docs/plan/BUILDER.md` (it has the starter prompt) and do one issue from tracking issue #65 per PR. Reviews follow `docs/plan/REVIEW.md`; the owner merges.
