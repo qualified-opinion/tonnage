@@ -2,9 +2,9 @@
 
 This file is the single place to learn what is done, what is next, and how work on Tonnage is run. Any agent or person can take over from here, including the owner working alone with Claude Code or Codex, one PR at a time. Keep it current: every batch PR updates the status table below.
 
-**Last updated:** 2026-10-18, after batches 3 and 4 merged and shipped in 1.5.0. The review of `main` at `093ac43` (`reviews/claude-review-4.md`) re-checked the remaining work, found a routine bug from batch 3 (R4-01) and split batches 5 and 6 into smaller PRs.
+**Last updated:** 2026-10-26. The review plan (#26 to #37, tracked in #25) is finished and shipped in 1.6.0. The owner agreed the next plan: feature roadmap 2, below.
 
-**The work queue is on GitHub.** Tracking issue [#25](https://github.com/qualified-opinion/tonnage/issues/25) lists the remaining PRs in order. Each issue (#26 to #37) is self-contained: pick one, read it fully, open one PR that says `Closes #<n>`. The issues replace the batch 5 and 6 packs as the spec; the packs stay for history.
+**The work queue is on GitHub.** Tracking issue [#65](https://github.com/qualified-opinion/tonnage/issues/65) lists the PRs in order. Each issue (#58 to #64) is self-contained: pick one, read it fully, open one PR that says `Closes #<n>`. The earlier plan's issues and the batch packs stay for history.
 
 ## What Tonnage is
 A private, offline strength logger for Android (a Hevy replacement with no social features), built with Kotlin, Compose, Material 3 and Room. Weights are stored in kg, and the owner uses kg. There is no `INTERNET` permission, no analytics and no cloud sync, and none of that changes. Architecture, the database, build and release are in `HANDOVER.md`; the rules are in `AGENTS.md`. Read both first.
@@ -20,6 +20,7 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 | 1.4.0 | 2026-10-17 | Batch 1 (backup and restore safety, PR #13) and batch 2 (Hevy import fidelity, PR #14) |
 | 1.4.1 | 2026-10-17 | Plank and other time cells take plain digits from the number pad (N03, PR #17) |
 | 1.5.0 | 2026-10-17 | Batch 3 (logging data safety, PR #18) and batch 4 (backup and schema safety, PR #19) |
+| 1.6.0 | 2026-10-21 | The whole review plan, #26 to #37 (PRs #40 to #52): routine targets kept out of logged sets, safer set input, consistent records, fast typing with large history, Progress refresh at midnight, TalkBack labels, a rest timer that never ends silently and survives the app being closed, routine drafts that survive, theme and Hevy zone in backups, trimmed release build |
 
 ## Where the work stands
 
@@ -30,24 +31,23 @@ A private, offline strength logger for Android (a Hevy replacement with no socia
 | 3. Logging data safety | `claude/plan-and-handover-n0yv7w` (this session can only push that branch) | blank-set ticks, finish and discard safety, T11, input hardening, keep screen on | Merged (PR #18, `a3de87b`), released in 1.5.0. Needs a phone check: keyboard and focus, tapping previous while typing, finish and discard dialogs, screen staying on. Follow-up bug R4-01 (routine plan counted as logged) is #26. |
 | 4. Backup and schema safety | `claude/plan-and-handover-n0yv7w` | restore message, duplicate ids, export size, last-backed-up line, T16, Dependabot, N12, N13 | Merged (PR #19, `093ac43`), released in 1.5.0. Needs a phone check: a real backup and restore, and the "Last backup" line in Settings. Follow-ups R4-03, R4-04, R4-07 are #28. |
 
-### Remaining work, in order (from `reviews/claude-review-4.md`)
+Batches 5 and 6 and the optional items were split into issues #26 to #37 (tracking issue #25) after the 2026-10-18 review. All twelve merged and shipped in 1.6.0.
 
-| PR | Issue | What | Findings | Size | Must follow | Status |
-|---|---|---|---|---|---|---|
-| 1 | #26 | A routine's planned sets aren't treated as logged | R4-01, R4-02 | M | none | Not started |
-| 2 | #27 | Set cells: bad time text, focus after delete, small input gaps | R4-05, R4-06, R4-08, R4-09, N09 | S | #26 | Not started |
-| 3 | #28 | Backup and release tidy-ups | R4-03, R4-04, R4-07 | S | none | Not started |
-| 4 | #29 | Personal records: no duplicates, no "was 0 kg" (batch 5a) | T14, N04, N05 | M | #26 | Not started |
-| 5 | #30 | Typing stays instant with years of history (batch 5b) | PR flow, T18, N08 | M | #29 | Not started |
-| 6 | #31 | Progress moves to the new week at Monday midnight (batch 5c) | T12 | S | #29 | Not started |
-| 7 | #32 | Screen-reader labels and bigger touch targets (batch 6c) | N11 | S | #27 | Not started |
-| 8 | #33 | The rest timer never ends silently (batch 6a) | T10, N10, R4-10 to R4-13 | M | none | Not started |
-| 9 | #34 | A running rest survives the app being closed (batch 6b) | T09 | M | #33 | Not started |
-| 10 | #35 | Backups keep the theme and Hevy time zone (optional) | N14 | S | #28 | Not started |
-| 11 | #36 | Routine draft survives the app being closed (optional) | N06 | M | none | Not started |
-| 12 | #37 | Trim the release build's keep rules (optional, last) | keep rule, R4-14 | S | everything else | Not started |
+## Feature roadmap 2 (agreed 2026-10-26)
 
-Do them in this order unless the owner says otherwise. #26 comes first because it is a real bug in the released app. #33 and #34 need a phone test before a release. Open Dependabot PRs: merge the low-risk ones first (Actions, coroutines, Room) and the Kotlin 2.4 bump last, each only when green.
+The owner picked these from the phase 7 extras and later ideas, in this order. One PR per issue; the tracking issue #65 is the live status.
+
+| PR | Issue | What | Size | Must follow | Status |
+|---|---|---|---|---|---|
+| 1 | #58 | Progression hints: "Last: 60 × 8, 8, 8 · try 62.5 × 8", tap to fill | M | none | Not started |
+| 2 | #59 | Exercise history table with a "no new best in N sessions" marker | S | none | Not started |
+| 3 | #60 | Automatic backup to a chosen folder after each finished workout (keeps 7 days) | M | none | Not started |
+| 4 | #61 | Export workout history as a CSV spreadsheet | S | #60 | Not started |
+| 5 | #62 | Body weight, part 1: `body_weights` table, Room version 5, backup schema version 2 | M, high risk | #60 | Not started |
+| 6 | #63 | Body weight, part 2: entry screen under More and a chart on Progress | M | #62 | Not started |
+| 7 | #64 | Housekeeping: compile against Android 37 so the Compose update (#56) can go in | S | none | Not started |
+
+Do them in this order unless the owner says otherwise. Suggested releases: 1.7.0 after #58 and #59, then 1.8.0 after #60 to #63. #62 changes the database, so phone-check its release before anything ships on top of it. Dependabot: #53, #54, #55 and #57 are green; #56 waits for #64.
 
 ## Item index
 Item ids T01 to T18 come from `reviews/codex-review.md`, which reproduced most of them with test probes. The fresh review `reviews/kiln-review-2.md` (on `main` at `7721bc7`) confirmed that every open T item is still real and added the N items below. The older product review `reviews/kiln-review.md` has the logging-friction findings. Line numbers in all three reviews have moved.
@@ -91,18 +91,15 @@ Each default below is what the pack will do unless the owner says otherwise.
 1. **Blank-set tick (batch 3):** ticking an empty set fills it from the "previous" value when there is one, and is ignored when there is none. This is how Hevy behaves. Built this way in batch 3; say so if you want it different.
 2. **Estimated 1RM cap (batch 5, optional):** ignore sets above 12 reps for the Epley estimate. Not in the pack by default, because it changes the PRs shown for old workouts. Say "include the 1RM cap" to add it.
 3. **Phone-to-phone transfer (batch 4):** `data_extraction_rules.xml` currently excludes everything from device transfer. Leave as is unless the owner wants it, since it is a privacy choice.
-4. **Phase 7 extras (after batch 6):** the original plan (`workout-app/plan.md`) listed body weight, plate calculator, progression hints and Health Connect as phase 7; the review later suggested cutting the plate calculator. Default: none is built until the owner asks, then one PR each in the order below.
+4. **Phase 7 extras:** decided 2026-10-26. Progression hints and body weight are in feature roadmap 2; the plate calculator and Health Connect stay on hold until the owner asks.
+5. **Progression step (#58):** a fixed 2.5 kg for now. A per-exercise or settable step is a possible follow-up if the owner wants it.
 
-## Phase 7 extras, not scheduled
-The last phase of the original plan. Do these only after batches 3 to 6 and only when the owner asks, one PR each.
-1. **Progression hints.** At the point of logging, for example "Last: 60 x 8,8,7, try 62.5 x 8", using a simple double-progression rule (all sets hit the top of the rep range, add the smallest weight step), tap to fill. Pure logic in `domain/`, fed by `WorkoutRepository.previousSets`; no schema change. Medium effort. The review ranked it the most useful idea.
-2. **Body weight log.** A new `body_weights` table (date, kg), a small entry screen under More, and a line chart on Progress using `ui/components/Charts.kt`. Needs Room version 5 with `MIGRATION_4_5` and a `MigrationTest` case, plus a backup `SCHEMA_VERSION` bump that still reads version 1. Small to medium.
-3. **Plate calculator.** A dialog from a weight cell that shows the plates per side for a bar weight (default 20 kg) and the owner's plate set. Display-only, no schema change; the plate set lives in `SettingsStore`. Small. The review rated it low value, so confirm with the owner first.
-4. **Health Connect export.** Write finished workouts (type, start, end, and optionally calories) to Health Connect, Android's on-phone health store. It is not a network call, so it fits the offline rule, but it adds a dependency, Health Connect permissions and a privacy choice. Export only, off by default, behind a Settings switch. Medium. Ask the owner before starting.
+## On hold, not scheduled
+Do these only when the owner asks, one PR each.
+1. **Plate calculator.** A dialog from a weight cell that shows the plates per side for a bar weight (default 20 kg) and the owner's plate set. Display-only, no schema change; the plate set lives in `SettingsStore`. Small. Rated low value by the review.
+2. **Health Connect export.** Write finished workouts (type, start, end, and optionally calories) to Health Connect, Android's on-phone health store. It is not a network call, so it fits the offline rule, but it adds a dependency, Health Connect permissions and a privacy choice. Export only, off by default, behind a Settings switch. Medium.
 
-## Later ideas, not scheduled
-Do these only after batches 3 to 6 and only when the owner asks. They came from the review, ranked by value.
-- **Per-exercise history table** of recent sessions with a "stalled for X sessions" marker. Small, the data already exists.
+Progression hints, body weight and the per-exercise history table moved into feature roadmap 2 above.
 
 ## Cut for now
 The review recommends not building these. Revisit only if the owner asks.
@@ -113,10 +110,10 @@ The review recommends not building these. Revisit only if the owner asks.
 
 ## How work is run
 Since 2026-10-19 one AI agent builds and Claude reviews; the owner merges.
-1. **Pick:** the owner gives the builder agent one issue from the work order in tracking issue #25 (or says "the next one"). Starter prompt: `docs/plan/BUILDER.md`.
+1. **Pick:** the owner gives the builder agent one issue from the work order in tracking issue #65 (or says "the next one"). Starter prompt: `docs/plan/BUILDER.md`.
 2. **Build:** the builder branches from `main`, does only that issue, adds a test that fails on the old code, and opens one PR against `main` with `Closes #NN`, using the PR template. CI must be green.
 3. **Review:** the owner pastes the PR link to Claude in the Tonnage project. Claude reviews against the issue and `docs/plan/REVIEW.md`, posts the verdict on the PR ("approve" or "changes needed", blockers first), and gives the owner a plain summary. The builder fixes comments with new commits; Claude re-checks only those.
-4. **Merge:** the owner merges once Claude approves and CI is green. The issue closes, and the reviewer ticks it off in #25.
+4. **Merge:** the owner merges once Claude approves and CI is green. The issue closes, and the reviewer ticks it off in #65.
 5. **Release:** only when the owner says "publish X.Y.Z" (see `HANDOVER.md`).
 6. **Never** (anyone): push to `main`, force-push a reviewed branch, tag or release without the owner, add network access, or use a destructive migration.
 7. **Docs:** builders don't edit the status table here (it caused merge conflicts); the tracking issue is the live status, and the reviewer refreshes this file every few merges. Builders still update `AGENTS.md` when a convention changes.
@@ -124,8 +121,8 @@ Since 2026-10-19 one AI agent builds and Claude reviews; the owner merges.
 ## Open verification
 Not yet checked on a real phone (batches 1 and 2 passed on 2026-10-17):
 - Plank time entry with the number pad after the N03 fix (released in 1.4.1).
-- The R8 release build at runtime. CI only compiles it.
-- Rest timer behaviour under Doze and OEM battery savers (batch 6).
+- The 1.6.0 release at runtime: it is the first release with the trimmed keep rules (#37), and CI only compiles it. Open every tab, log a workout, back up.
+- Rest timer behaviour with the phone locked, under Doze and OEM battery savers, and after the app is closed mid-rest (#33, #34 in 1.6.0).
 
 ## Facts a new owner needs
 - The repo is public. Release signing keys come from CI secrets only (names in `HANDOVER.md`). A published release refuses to build without them; other release builds fall back to the debug key.
