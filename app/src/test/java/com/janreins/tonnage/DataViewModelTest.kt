@@ -211,7 +211,7 @@ class DataViewModelTest {
         assertEquals(ThemeMode.DARK, parsed.themeMode)
         assertEquals("Asia/Manila", parsed.hevyImportZone)
         assertEquals(parsed, BackupJson.read(BackupJson.write(parsed)))
-        assertEquals(1, org.json.JSONObject(text).getInt("schemaVersion"))
+        assertEquals(BackupJson.SCHEMA_VERSION, org.json.JSONObject(text).getInt("schemaVersion"))
         settings.setThemeMode(ThemeMode.LIGHT)
         // Simulate a destination phone which has not imported a Hevy file yet.
         application.getSharedPreferences("settings", Application.MODE_PRIVATE).edit().remove("hevy_import_zone").commit()
