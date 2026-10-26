@@ -169,6 +169,12 @@ abstract class WorkoutDao {
     )
     abstract suspend fun updateValues(id: Long, weightKg: Double?, reps: Int?, distanceKm: Double?, durationSec: Int?)
 
+    /** Writes several sets' numbers at once, e.g. filling a progression hint. */
+    @Transaction
+    open suspend fun updateAllValues(sets: List<WorkoutSet>) {
+        sets.forEach { updateValues(it.id, it.weightKg, it.reps, it.distanceKm, it.durationSec) }
+    }
+
     @Query("UPDATE workout_sets SET type = :type WHERE id = :id")
     abstract suspend fun updateType(id: Long, type: SetType)
 

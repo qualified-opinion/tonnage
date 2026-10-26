@@ -323,6 +323,7 @@ private fun ActiveWorkoutScreen(
                     onRemove = { viewModel.removeExercise(block) },
                     previous = previous[block.workoutExercise.exerciseId].orEmpty(),
                     onUsePrevious = viewModel::usePrevious,
+                    onUseHint = { viewModel.useHint(block, it) },
                     onMoveUp = if (index > 0) ({ viewModel.moveExercise(block, -1) }) else null,
                     onMoveDown = if (index < active.blocks.lastIndex) ({ viewModel.moveExercise(block, 1) }) else null,
                 )

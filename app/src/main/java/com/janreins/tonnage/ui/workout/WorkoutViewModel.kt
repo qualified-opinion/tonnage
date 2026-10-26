@@ -13,6 +13,7 @@ import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
+import com.janreins.tonnage.domain.ProgressionHint
 import com.janreins.tonnage.domain.SessionSummary
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.service.WorkoutService
@@ -186,6 +187,10 @@ class WorkoutViewModel @JvmOverloads constructor(
 
     fun usePrevious(set: WorkoutSet, previous: WorkoutSet) {
         viewModelScope.launch { repository.copyValues(set.id, previous) }
+    }
+
+    fun useHint(block: ExerciseBlock, hint: ProgressionHint) {
+        viewModelScope.launch { repository.fillHint(block, hint) }
     }
 
     fun setRest(block: ExerciseBlock, seconds: Int) {
