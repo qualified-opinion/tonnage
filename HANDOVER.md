@@ -4,7 +4,7 @@ Read this, then `AGENTS.md` (the rules) and `docs/plan/ROADMAP.md` (status and w
 
 ## The short version
 - **What it is:** a private, offline strength logger for Android that replaces Hevy, minus the social features. One user (the owner, Jan), data on the phone only.
-- **Stack:** Kotlin 2.4, Jetpack Compose, Material 3, Room (SQLite). minSdk 26, targetSdk/compileSdk 35, JDK 17 in CI, Java 11 bytecode. Set up like the owner's other app, Piso.
+- **Stack:** Kotlin 2.4, Jetpack Compose, Material 3, Room (SQLite). minSdk 26, compileSdk 37 (needed by Compose 1.12), targetSdk 35, JDK 17 in CI, Java 11 bytecode. Set up like the owner's other app, Piso.
 - **Package / application id:** `com.janreins.tonnage`. **Never change it.** Android treats a new id as a different app, so the owner's installed history would be stranded.
 - **No network.** There is no `INTERNET` permission, no analytics and no sync. Keep it that way (see `AGENTS.md`).
 - **The owner is not a developer.** The owner installs APKs from GitHub Releases and merges PRs from the PR page. Explain changes in plain language, and always open PRs against `main` (a PR based on another branch merges into that branch, not `main`).
