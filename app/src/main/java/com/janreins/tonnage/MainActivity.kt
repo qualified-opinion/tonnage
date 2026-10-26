@@ -305,6 +305,7 @@ private fun TonnageApp() {
                                 onOpenBackup = dataViewModel::openBackup,
                                 onConfirmRestore = dataViewModel::confirmRestore,
                                 onDismissBackup = dataViewModel::dismissBackup,
+                                onExportCsv = dataViewModel::exportCsv,
                                 onChooseAutoBackup = dataViewModel::chooseAutoBackupFolder,
                                 onTurnOffAutoBackup = dataViewModel::turnOffAutoBackup,
                             ),

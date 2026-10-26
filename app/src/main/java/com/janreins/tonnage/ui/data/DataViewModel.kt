@@ -11,6 +11,7 @@ import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
 import com.janreins.tonnage.data.backup.BackupRepository
 import com.janreins.tonnage.data.backup.BackupTooLargeException
+import com.janreins.tonnage.data.backup.WorkoutCsv
 import com.janreins.tonnage.data.backup.WorkoutInProgressException
 import com.janreins.tonnage.data.hevy.FileTooLargeException
 import com.janreins.tonnage.data.hevy.HevyFormatException
@@ -37,12 +38,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.ZoneId
 
 /** The Hevy import, step by step. */
 sealed interface ImportState {
@@ -58,6 +61,7 @@ sealed interface ImportState {
 sealed interface BackupState {
     data object Working : BackupState
     data class Saved(val workouts: Int) : BackupState
+    data class Exported(val workouts: Int) : BackupState
     /** A backup was read and is waiting for the user to confirm replacing everything. */
     data class ConfirmRestore(val contents: BackupContents) : BackupState
     data class Restored(val workouts: Int) : BackupState
@@ -190,6 +194,34 @@ class DataViewModel @JvmOverloads constructor(
             } finally {
                 if (!written) withContext(NonCancellable + Dispatchers.IO) {
                     // The picker already created a document, even if encoding never opened it.
+                    runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
+                }
+            }
+        }
+    }
+
+    /** Writes every finished workout as a CSV spreadsheet, one row per set. */
+    fun exportCsv(uri: Uri) {
+        _backup.value = BackupState.Working
+        viewModelScope.launch {
+            var written = false
+            _backup.value = try {
+                val contents = backups.export(settings.defaultRestSeconds.value)
+                val library = db.exerciseDao().observeAll().first().associateBy { it.id }
+                withContext(Dispatchers.IO) {
+                    val bytes = WorkoutCsv.write(contents, library, ZoneId.systemDefault()).toByteArray(Charsets.UTF_8)
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
+                        it.write(bytes)
+                    } ?: throw IllegalStateException("Couldn't create the file.")
+                }
+                written = true
+                BackupState.Exported(contents.workouts.size)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                BackupState.Failed("The spreadsheet couldn't be saved: ${e.message ?: e.javaClass.simpleName}")
+            } finally {
+                if (!written) withContext(NonCancellable + Dispatchers.IO) {
                     runCatching { DocumentsContract.deleteDocument(getApplication<Application>().contentResolver, uri) }
                 }
             }

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,6 +57,7 @@ class DataActions(
     val onOpenBackup: (Uri) -> Unit,
     val onConfirmRestore: () -> Unit,
     val onDismissBackup: () -> Unit,
+    val onExportCsv: (Uri) -> Unit,
     val onChooseAutoBackup: (Uri) -> Unit,
     val onTurnOffAutoBackup: () -> Unit,
 )
@@ -81,6 +83,9 @@ fun SettingsScreen(
         uri?.let(data.onSaveBackup)
     }
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(data.onOpenBackup) }
+    val csvFile = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        uri?.let(data.onExportCsv)
+    }
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(data.onChooseAutoBackup) }
 
     Scaffold(
@@ -177,6 +182,14 @@ fun SettingsScreen(
                 },
             )
             ListItem(
+                modifier = Modifier.clickable {
+                    csvFile.launch("tonnage-workouts-" + SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) + ".csv")
+                },
+                leadingContent = { Icon(Icons.Filled.TableChart, contentDescription = null) },
+                headlineContent = { Text("Export to spreadsheet (CSV)") },
+                supportingContent = { Text("Every set of every finished workout, one row each, for Excel or Google Sheets. It can't be restored; use a backup for that.") },
+            )
+            ListItem(
                 modifier = Modifier.clickable { openFile.launch(arrayOf("application/json", "text/*", "application/octet-stream")) },
                 leadingContent = { Icon(Icons.Filled.Restore, contentDescription = null) },
                 headlineContent = { Text("Restore from a backup") },
@@ -216,6 +229,7 @@ private fun BackupDialog(state: BackupState?, data: DataActions) {
             confirmButton = {},
         )
         is BackupState.Saved -> Info("Backup saved", "Saved ${count(state.workouts, "workout")}, plus your routines and custom exercises.", data)
+        is BackupState.Exported -> Info("Spreadsheet saved", "Saved every set of ${count(state.workouts, "workout")}.", data)
         is BackupState.Restored -> Info("Backup restored", "Restored ${count(state.workouts, "workout")}, plus routines and custom exercises.", data)
         is BackupState.Failed -> Info("Something went wrong", state.message, data)
         is BackupState.ConfirmRestore -> {
