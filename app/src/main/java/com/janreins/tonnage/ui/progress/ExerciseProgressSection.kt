@@ -34,7 +34,7 @@ private enum class ChartRange(val label: String, val days: Long?) {
     ALL("All", null),
 }
 
-private fun date(ms: Long, pattern: String): String =
+internal fun date(ms: Long, pattern: String): String =
     Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate().format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
 
 /** An exercise's progress chart, with a choice of what to plot and over how long. */
