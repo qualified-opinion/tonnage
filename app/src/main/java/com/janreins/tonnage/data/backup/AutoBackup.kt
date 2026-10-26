@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import androidx.core.net.toUri
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.settings.SettingsStore
 import kotlinx.coroutines.CancellationException
@@ -57,7 +58,7 @@ object AutoBackup {
         val settings = SettingsStore.get(app)
         val folder = settings.autoBackupFolder.value ?: return
         scope.launch {
-            run(settings, DocumentTreeFolder(app.contentResolver, Uri.parse(folder)), LocalDate.now()) {
+            run(settings, DocumentTreeFolder(app.contentResolver, folder.toUri()), LocalDate.now()) {
                 BackupRepository(AppDatabase.getInstance(app)).exportFile(settings)
             }
         }
@@ -126,7 +127,7 @@ object AutoBackup {
     private fun release(resolver: ContentResolver, treeUri: String) {
         runCatching {
             resolver.releasePersistableUriPermission(
-                Uri.parse(treeUri),
+                treeUri.toUri(),
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
         }
@@ -134,7 +135,7 @@ object AutoBackup {
 
     /** The chosen folder's name for Settings, or null if it can't be read. */
     fun folderName(context: Context, treeUri: String): String? = runCatching {
-        val tree = Uri.parse(treeUri)
+        val tree = treeUri.toUri()
         val uri = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
         context.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null)?.use {
             if (it.moveToFirst()) it.getString(0) else null
