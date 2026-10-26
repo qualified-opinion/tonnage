@@ -451,15 +451,15 @@ class BackupTest {
         db.bodyWeightDao().upsert(day("2026-10-20"), 82.4)
         forbidDeletes()
         val text = BackupJson.write(backupOf(db))
-        fun with(vararg entries: String) =
+        fun withWeights(vararg entries: String) =
             JSONObject(text).put("bodyWeights", JSONArray("[" + entries.joinToString(",") + "]")).toString()
         val bad = "A body weight in the file isn't valid. Nothing was changed."
-        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":80}""", """{"date":"2026-10-20","weightKg":81}"""), BackupJson.DUPLICATE_BODY_WEIGHT)
-        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":0}"""), bad)
-        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":1000.5}"""), bad)
-        assertRejectedWithoutChanges(with("""{"date":"2026-13-40","weightKg":80}"""), bad)
-        assertRejectedWithoutChanges(with("""{"date":20261020,"weightKg":80}"""))
-        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":-80}"""))
+        assertRejectedWithoutChanges(withWeights("""{"date":"2026-10-20","weightKg":80}""", """{"date":"2026-10-20","weightKg":81}"""), BackupJson.DUPLICATE_BODY_WEIGHT)
+        assertRejectedWithoutChanges(withWeights("""{"date":"2026-10-20","weightKg":0}"""), bad)
+        assertRejectedWithoutChanges(withWeights("""{"date":"2026-10-20","weightKg":1000.5}"""), bad)
+        assertRejectedWithoutChanges(withWeights("""{"date":"2026-13-40","weightKg":80}"""), bad)
+        assertRejectedWithoutChanges(withWeights("""{"date":20261020,"weightKg":80}"""))
+        assertRejectedWithoutChanges(withWeights("""{"date":"2026-10-20","weightKg":-80}"""))
         assertRejectedWithoutChanges(JSONObject(text).apply { remove("bodyWeights") }.toString())
         assertEquals(listOf(82.4), db.bodyWeightDao().all().map { it.weightKg })
     }
