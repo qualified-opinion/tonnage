@@ -28,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.WorkoutSummary
 import com.janreins.tonnage.domain.Format
@@ -36,7 +37,6 @@ import com.janreins.tonnage.ui.components.ComingSoon
 import com.janreins.tonnage.ui.theme.PrGold
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +76,7 @@ fun HistoryScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun WorkoutCard(workout: WorkoutSummary, recordCount: Int, onClick: () -> Unit) {
-    val date = SimpleDateFormat("EEE d MMM yyyy · HH:mm", Locale.getDefault()).format(Date(workout.startedAt))
+    val date = SimpleDateFormat("EEE d MMM yyyy · HH:mm", LocalLocale.current.platformLocale).format(Date(workout.startedAt))
     val duration = workout.endedAt?.let { Format.duration(it - workout.startedAt) }
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

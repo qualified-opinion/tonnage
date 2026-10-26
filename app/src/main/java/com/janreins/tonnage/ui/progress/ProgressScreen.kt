@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalLocale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -358,7 +359,7 @@ private fun AchievedRow(milestone: Milestone) {
         Spacer(Modifier.width(8.dp))
         Text(milestone.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text(
-            date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.getDefault())),
+            date.format(DateTimeFormatter.ofPattern("d MMM yyyy", LocalLocale.current.platformLocale)),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

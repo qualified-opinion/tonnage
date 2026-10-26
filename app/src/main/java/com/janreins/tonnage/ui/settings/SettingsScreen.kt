@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.settings.SettingsStore
@@ -242,7 +243,7 @@ private fun BackupDialog(state: BackupState?, data: DataActions) {
         is BackupState.Failed -> Info("Something went wrong", state.message, data)
         is BackupState.ConfirmRestore -> {
             val c = state.contents
-            val made = if (c.exportedAt > 0) SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(Date(c.exportedAt)) else "an unknown date"
+            val made = if (c.exportedAt > 0) SimpleDateFormat("d MMM yyyy, HH:mm", LocalLocale.current.platformLocale).format(Date(c.exportedAt)) else "an unknown date"
             AlertDialog(
                 onDismissRequest = data.onDismissBackup,
                 title = { Text("Restore this backup?") },
