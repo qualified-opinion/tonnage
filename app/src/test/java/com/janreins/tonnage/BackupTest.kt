@@ -290,7 +290,7 @@ class BackupTest {
     }
 
     private fun forbidDeletes() {
-        listOf("workouts", "routines", "hevy_mappings", "exercises").forEach { table ->
+        listOf("workouts", "routines", "hevy_mappings", "exercises", "body_weights").forEach { table ->
             db.openHelper.writableDatabase.execSQL(
                 "CREATE TRIGGER forbid_delete_$table BEFORE DELETE ON $table BEGIN SELECT RAISE(ABORT, 'Validation must precede deletes'); END",
             )
@@ -330,7 +330,8 @@ class BackupTest {
         val fresh = newDatabase()
         fresh.exerciseDao().insertAll(listOf(bench))
         BackupRepository(fresh).restore(BackupJson.read(text))
-        assertEquals(text, BackupJson.write(backupOf(fresh)))
+        // The writer is now version 2 (body weights), so compare what the files hold.
+        assertEquals(BackupJson.read(text), BackupJson.read(BackupJson.write(backupOf(fresh))).copy(bodyWeights = null))
     }
 
     @Test
@@ -408,6 +409,59 @@ class BackupTest {
         }
         assertEquals(active, workouts.getActive()?.id)
         assertEquals(1, workouts.observeHistory().first().size)
+    }
+
+    private fun day(date: String) = java.time.LocalDate.parse(date).toEpochDay()
+
+    @Test
+    fun bodyWeightsRoundTripInAVersion2Backup() = runTest {
+        db.bodyWeightDao().upsert(day("2026-10-20"), 82.4)
+        db.bodyWeightDao().upsert(day("2026-10-26"), 81.95)
+        val text = BackupJson.write(backupOf(db))
+        assertEquals(2, JSONObject(text).getInt("schemaVersion"))
+        assertEquals(
+            """[{"date":"2026-10-20","weightKg":82.4},{"date":"2026-10-26","weightKg":81.95}]""",
+            JSONObject(text).getJSONArray("bodyWeights").toString(),
+        )
+
+        val fresh = newDatabase()
+        fresh.exerciseDao().insertAll(listOf(bench))
+        fresh.bodyWeightDao().upsert(day("2020-01-01"), 90.0)
+        BackupRepository(fresh).restore(BackupJson.read(text))
+        assertEquals(
+            listOf("2026-10-20" to 82.4, "2026-10-26" to 81.95),
+            fresh.bodyWeightDao().all().map { it.date.toString() to it.weightKg },
+        )
+        assertEquals(text, BackupJson.write(backupOf(fresh)))
+    }
+
+    @Test
+    fun aVersion1RestoreLeavesBodyWeightsAlone() = runTest {
+        db.bodyWeightDao().upsert(day("2026-10-20"), 82.4)
+        val v1 = JSONObject(BackupJson.write(backupOf(db))).put("schemaVersion", 1)
+        v1.remove("bodyWeights")
+        val contents = BackupJson.read(v1.toString())
+        assertNull(contents.bodyWeights)
+        BackupRepository(db).restore(contents)
+        assertEquals(listOf(82.4), db.bodyWeightDao().all().map { it.weightKg })
+    }
+
+    @Test
+    fun badBodyWeightsAreRejectedBeforeDeletes() = runTest {
+        db.bodyWeightDao().upsert(day("2026-10-20"), 82.4)
+        forbidDeletes()
+        val text = BackupJson.write(backupOf(db))
+        fun with(vararg entries: String) =
+            JSONObject(text).put("bodyWeights", JSONArray("[" + entries.joinToString(",") + "]")).toString()
+        val bad = "A body weight in the file isn't valid. Nothing was changed."
+        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":80}""", """{"date":"2026-10-20","weightKg":81}"""), BackupJson.DUPLICATE_BODY_WEIGHT)
+        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":0}"""), bad)
+        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":1000.5}"""), bad)
+        assertRejectedWithoutChanges(with("""{"date":"2026-13-40","weightKg":80}"""), bad)
+        assertRejectedWithoutChanges(with("""{"date":20261020,"weightKg":80}"""))
+        assertRejectedWithoutChanges(with("""{"date":"2026-10-20","weightKg":-80}"""))
+        assertRejectedWithoutChanges(JSONObject(text).apply { remove("bodyWeights") }.toString())
+        assertEquals(listOf(82.4), db.bodyWeightDao().all().map { it.weightKg })
     }
 
     @Test
