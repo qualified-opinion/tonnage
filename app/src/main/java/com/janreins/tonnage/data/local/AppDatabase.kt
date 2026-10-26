@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.janreins.tonnage.data.model.BodyWeight
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.Routine
@@ -126,12 +127,29 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/** Adds the body weight log: one entry per day. */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `body_weights` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `epochDay` INTEGER NOT NULL,
+                `weightKg` REAL NOT NULL,
+                `createdAt` INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_body_weights_epochDay` ON `body_weights` (`epochDay`)")
+    }
+}
+
 @Database(
     entities = [
         Exercise::class, Workout::class, WorkoutExercise::class, WorkoutSet::class,
-        Routine::class, RoutineExercise::class, RoutineSet::class, HevyMapping::class,
+        Routine::class, RoutineExercise::class, RoutineSet::class, HevyMapping::class, BodyWeight::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -140,6 +158,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun workoutDao(): WorkoutDao
     abstract fun routineDao(): RoutineDao
     abstract fun importDao(): ImportDao
+    abstract fun bodyWeightDao(): BodyWeightDao
 
     companion object {
         const val NAME = "tonnage_database"
@@ -154,7 +173,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun build(context: Context, name: String = NAME): AppDatabase =
             Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -74,6 +75,7 @@ fun ProgressScreen(
     onOpenExercise: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val bodyWeight by viewModel.bodyWeight.collectAsStateWithLifecycle()
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -96,6 +98,7 @@ fun ProgressScreen(
                 item { WeekCard(overview, viewModel) }
                 item { MusclesCard(overview.muscles, isThisWeek = overview.selectedWeek == overview.weeks.lastIndex) }
                 item { MilestonesCard(overview) }
+                if (bodyWeight.entries.isNotEmpty()) item { BodyWeightCard(bodyWeight.entries, bodyWeight.today) }
                 item { SectionTitle("Exercises") }
                 items(overview.exercises, key = { it.exerciseId }) { exercise ->
                     ExerciseRow(exercise, onClick = { onOpenExercise(exercise.exerciseId) })

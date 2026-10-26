@@ -48,6 +48,8 @@ import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.ui.data.DataViewModel
 import com.janreins.tonnage.ui.data.ImportScreen
 import com.janreins.tonnage.ui.exercises.AddExerciseDialog
+import com.janreins.tonnage.ui.bodyweight.BodyWeightScreen
+import com.janreins.tonnage.ui.bodyweight.BodyWeightViewModel
 import com.janreins.tonnage.ui.exercises.ExerciseDetailScreen
 import com.janreins.tonnage.ui.exercises.ExercisesScreen
 import com.janreins.tonnage.ui.exercises.ExercisesViewModel
@@ -106,6 +108,7 @@ private fun TonnageApp() {
     val context = LocalContext.current
     var tab by rememberSaveable { mutableStateOf(MainTab.WORKOUT) }
     var openExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showBodyWeight by rememberSaveable { mutableStateOf(false) }
     // Which screen the exercise picker adds to, or null when it's closed.
     var pickerTarget by rememberSaveable { mutableStateOf<PickerTarget?>(null) }
     var pickerSelection by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -117,6 +120,7 @@ private fun TonnageApp() {
     val routinesViewModel: RoutinesViewModel = viewModel()
     val dataViewModel: DataViewModel = viewModel()
     val progressViewModel: ProgressViewModel = viewModel()
+    val bodyWeightViewModel: BodyWeightViewModel = viewModel()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         progressViewModel.refresh()
         workoutViewModel.ensureService()
@@ -171,6 +175,17 @@ private fun TonnageApp() {
                         }
                     }
                 },
+            )
+        }
+        showBodyWeight -> {
+            BackHandler { showBodyWeight = false }
+            val entries by bodyWeightViewModel.entries.collectAsStateWithLifecycle()
+            BodyWeightScreen(
+                entries = entries,
+                today = bodyWeightViewModel.today(),
+                onSave = bodyWeightViewModel::save,
+                onDelete = bodyWeightViewModel::delete,
+                onBack = { showBodyWeight = false },
             )
         }
         target != null -> {
@@ -298,6 +313,7 @@ private fun TonnageApp() {
                             onThemeModeChange = settings::setThemeMode,
                             lastBackupAt = lastBackupAt,
                             backupState = backupState,
+                            onOpenBodyWeight = { showBodyWeight = true },
                             autoBackup = AutoBackupInfo(on = autoFolder != null, folderName = autoFolderName, error = autoError),
                             data = DataActions(
                                 onImportHevy = dataViewModel::startImport,

@@ -33,7 +33,7 @@ docs/plan/                  roadmap, batch handoff packs, reviews
 
 How a change flows: a screen calls its ViewModel, the ViewModel calls a repository, the repository writes to Room. Screens observe Room through `Flow`s, so the screen updates itself after the write. Nothing important is held only in memory during a workout.
 
-## Data model (Room, database `tonnage_database`, version 4)
+## Data model (Room, database `tonnage_database`, version 5)
 
 | Table | Holds | Notes |
 |---|---|---|
@@ -43,16 +43,17 @@ How a change flows: a screen calls its ViewModel, the ViewModel calls a reposito
 | `workout_sets` | the sets | weight in **kg** always; `type` warm-up / normal / drop / failure; `completed` = ticked |
 | `routines`, `routine_exercises`, `routine_sets` | templates | saved in one transaction by `RoutineDao.save` |
 | `hevy_mappings` | remembered Hevy name to exercise matches | key is `ExerciseMatcher.normalizeName` |
+| `body_weights` | body weight log, in **kg** | one row per day (unique `epochDay`); saving a day again replaces it |
 
 Not stored on purpose: personal records, milestones and progress stats. They are recomputed from sets every time, so editing or deleting an old workout can never leave a stale record.
 
-**Migrations:** 1 to 2 (workouts), 2 to 3 (routines, `workouts.routineId`), 3 to 4 (`hevy_mappings`), all in `AppDatabase.kt`. Rules for the next one:
-1. Bump `version`, write a `MIGRATION_4_5` that keeps every row, and add it to `addMigrations`.
-2. Add a case to `MigrationTest` that builds version 4 with real rows and opens it with the new app.
+**Migrations:** 1 to 2 (workouts), 2 to 3 (routines, `workouts.routineId`), 3 to 4 (`hevy_mappings`), 4 to 5 (`body_weights`), all in `AppDatabase.kt`. Rules for the next one:
+1. Bump `version`, write a `MIGRATION_5_6` that keeps every row, and add it to `addMigrations`.
+2. Add a case to `MigrationTest` that builds version 5 with real rows and opens it with the new app.
 3. Never use `fallbackToDestructiveMigration`. It would wipe the owner's history.
 4. Commit the new schema JSON from `app/schemas`. CI's "Check Room schemas are committed" step fails when the build writes a schema that isn't in git, and prints the file to commit (it is also in the run's `room-schemas` artifact).
 
-**Backups** (`data/backup`) are JSON with `format` and `schemaVersion`. Bump `BackupJson.SCHEMA_VERSION` for any change an older app could not read, and keep the reader able to read every older version. Restore checks everything first, then replaces data in one transaction, and refuses while a workout is in progress.
+**Backups** (`data/backup`) are JSON with `format` and `schemaVersion`. Bump `BackupJson.SCHEMA_VERSION` for any change an older app could not read, and keep the reader able to read every older version. Version 2 added `bodyWeights`; a version 1 file restores without touching body weights. Restore checks everything first, then replaces data in one transaction, and refuses while a workout is in progress.
 
 ## Build, test and release
 

@@ -55,12 +55,14 @@ class BackupRepository(
                 RoutineContents(routine, routineExercises[routine.id].orEmpty().map { it to routineSets[it.id].orEmpty() })
             },
             hevyMappings = dao.mappings(),
+            bodyWeights = db.bodyWeightDao().all(),
         )
     }
 
     /**
-     * Replaces workouts, routines, custom exercises and remembered Hevy matches with the
-     * backup's, in one transaction: if anything fails, nothing changes.
+     * Replaces workouts, routines, custom exercises, remembered Hevy matches and (from a
+     * version 2 file) body weights with the backup's, in one transaction: if anything fails,
+     * nothing changes.
      */
     suspend fun restore(contents: BackupContents) = db.withTransaction {
         if (db.workoutDao().getActive() != null) throw WorkoutInProgressException()
@@ -83,6 +85,10 @@ class BackupRepository(
             contents.routines.flatMap { r -> r.exercises.map { it.first.exerciseId } } +
             contents.hevyMappings.map { it.exerciseId }
         if (referencedIds.any { it !in availableIds }) throw BackupFormatException()
+        val bodyWeights = contents.bodyWeights
+        if (bodyWeights != null && bodyWeights.map { it.epochDay }.toSet().size != bodyWeights.size) {
+            throw BackupFormatException(BackupJson.DUPLICATE_BODY_WEIGHT)
+        }
 
         dao.deleteAllWorkouts()
         dao.deleteAllRoutines()
@@ -109,5 +115,10 @@ class BackupRepository(
         val workoutDao = db.workoutDao()
         contents.workouts.forEach { workoutDao.insertWorkoutWithContents(it.workout.copy(id = 0), it.exercises) }
         if (contents.hevyMappings.isNotEmpty()) dao.saveMappings(contents.hevyMappings)
+        // An old (version 1) file has no body weights, so the ones on the phone stay.
+        if (bodyWeights != null) {
+            db.bodyWeightDao().deleteAll()
+            db.bodyWeightDao().insertAll(bodyWeights.map { it.copy(id = 0) })
+        }
     }
 }
