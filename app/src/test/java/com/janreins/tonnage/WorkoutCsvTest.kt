@@ -44,12 +44,12 @@ class WorkoutCsvTest {
         zone,
     )
 
-    private fun lines(text: String) = text.removePrefix("﻿").split("\r\n").filter { it.isNotEmpty() }
+    private fun lines(text: String) = text.removePrefix("\uFEFF").split("\r\n").filter { it.isNotEmpty() }
 
     @Test
     fun startsWithByteOrderMarkAndTheHeaderInOrder() {
         val text = csv()
-        assertTrue(text.startsWith("﻿"))
+        assertTrue(text.startsWith("\uFEFF"))
         assertEquals(
             listOf("date,start_time,end_time,workout,exercise,set_number,set_type,weight_kg,reps,distance_km,duration_seconds,volume_kg"),
             lines(text),

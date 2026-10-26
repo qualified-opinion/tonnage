@@ -18,7 +18,8 @@ object WorkoutCsv {
         "weight_kg", "reps", "distance_km", "duration_seconds", "volume_kg",
     )
 
-    private const val BOM = "﻿"
+    /** UTF-8 byte-order mark, so Excel reads emoji and accents correctly. */
+    private const val BOM = '\uFEFF'
     private val dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -42,7 +43,7 @@ object WorkoutCsv {
                 }
             }
         }
-        return BOM + rows.joinToString("") { row -> row.joinToString(",") { quote(it) } + "\r\n" }
+        return "$BOM" + rows.joinToString("") { row -> row.joinToString(",") { quote(it) } + "\r\n" }
     }
 
     /** weight_kg, reps, distance_km, duration_seconds, volume_kg: only what this way of logging uses. */
