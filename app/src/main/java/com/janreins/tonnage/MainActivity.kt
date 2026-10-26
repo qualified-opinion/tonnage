@@ -59,6 +59,7 @@ import com.janreins.tonnage.ui.progress.ProgressScreen
 import com.janreins.tonnage.ui.progress.ProgressViewModel
 import com.janreins.tonnage.ui.routines.RoutineEditorScreen
 import com.janreins.tonnage.ui.routines.RoutinesViewModel
+import com.janreins.tonnage.ui.settings.AutoBackupInfo
 import com.janreins.tonnage.ui.settings.DataActions
 import com.janreins.tonnage.ui.settings.SettingsScreen
 import com.janreins.tonnage.ui.state.MainTab
@@ -287,6 +288,9 @@ private fun TonnageApp() {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
                         val themeMode by settings.themeMode.collectAsStateWithLifecycle()
                         val lastBackupAt by settings.lastBackupAt.collectAsStateWithLifecycle()
+                        val autoFolder by dataViewModel.autoBackupFolder.collectAsStateWithLifecycle()
+                        val autoFolderName by dataViewModel.autoBackupFolderName.collectAsStateWithLifecycle()
+                        val autoError by dataViewModel.autoBackupError.collectAsStateWithLifecycle()
                         SettingsScreen(
                             defaultRestSeconds = restSeconds,
                             onDefaultRestChange = settings::setDefaultRestSeconds,
@@ -294,12 +298,15 @@ private fun TonnageApp() {
                             onThemeModeChange = settings::setThemeMode,
                             lastBackupAt = lastBackupAt,
                             backupState = backupState,
+                            autoBackup = AutoBackupInfo(on = autoFolder != null, folderName = autoFolderName, error = autoError),
                             data = DataActions(
                                 onImportHevy = dataViewModel::startImport,
                                 onSaveBackup = dataViewModel::saveBackup,
                                 onOpenBackup = dataViewModel::openBackup,
                                 onConfirmRestore = dataViewModel::confirmRestore,
                                 onDismissBackup = dataViewModel::dismissBackup,
+                                onChooseAutoBackup = dataViewModel::chooseAutoBackupFolder,
+                                onTurnOffAutoBackup = dataViewModel::turnOffAutoBackup,
                             ),
                             modifier = modifier,
                         )

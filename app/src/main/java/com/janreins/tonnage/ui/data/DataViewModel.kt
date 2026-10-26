@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.backup.BackupContents
 import com.janreins.tonnage.data.backup.BackupFormatException
 import com.janreins.tonnage.data.backup.BackupJson
@@ -27,6 +28,7 @@ import com.janreins.tonnage.data.repository.ImportResult
 import com.janreins.tonnage.data.settings.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -169,9 +172,8 @@ class DataViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             var written = false
             _backup.value = try {
-                val contents = backups.export(settings.defaultRestSeconds.value, settings.themeMode.value, settings.hevyImportZone)
+                val (contents, bytes) = backups.exportFile(settings, encodeBackup)
                 withContext(Dispatchers.IO) {
-                    val bytes = encodeBackup(contents)
                     getApplication<Application>().contentResolver.openOutputStream(uri, "wt")?.use {
                         it.write(bytes)
                     } ?: throw IllegalStateException("Couldn't create the file.")
@@ -231,6 +233,24 @@ class DataViewModel @JvmOverloads constructor(
             }
         }
     }
+
+    // Automatic backup
+
+    val autoBackupFolder: StateFlow<String?> = settings.autoBackupFolder
+    val autoBackupError: StateFlow<String?> = settings.autoBackupError
+
+    /** The chosen folder's name, read off the main thread. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val autoBackupFolderName: StateFlow<String?> = settings.autoBackupFolder
+        .mapLatest { folder -> folder?.let { withContext(Dispatchers.IO) { AutoBackup.folderName(getApplication(), it) } } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun chooseAutoBackupFolder(treeUri: Uri) {
+        runCatching { AutoBackup.choose(getApplication(), treeUri) }
+            .onFailure { _backup.value = BackupState.Failed("That folder can't be used for automatic backups. Pick another one.") }
+    }
+
+    fun turnOffAutoBackup() = AutoBackup.turnOff(getApplication())
 
     fun dismissBackup() {
         if (_backup.value is BackupState.Working) return

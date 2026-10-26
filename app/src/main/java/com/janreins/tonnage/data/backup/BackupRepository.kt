@@ -1,9 +1,12 @@
 package com.janreins.tonnage.data.backup
 
 import androidx.room.withTransaction
+import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.RoutineContents
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Restoring would delete the workout being logged, so it has to be finished or discarded first. */
 class WorkoutInProgressException : Exception("Finish or discard the workout in progress before restoring a backup.")
@@ -13,6 +16,18 @@ class BackupRepository(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val dao = db.importDao()
+
+    /**
+     * A backup file's contents and bytes, encoded off the main thread. The manual and the
+     * automatic backup both write exactly this, so the two files can never differ.
+     */
+    suspend fun exportFile(
+        settings: SettingsStore,
+        encode: (BackupContents) -> ByteArray = { BackupJson.encode(it) },
+    ): Pair<BackupContents, ByteArray> {
+        val contents = export(settings.defaultRestSeconds.value, settings.themeMode.value, settings.hevyImportZone)
+        return contents to withContext(Dispatchers.IO) { encode(contents) }
+    }
 
     /** Reads everything worth keeping. The workout in progress, if any, isn't included. */
     suspend fun export(

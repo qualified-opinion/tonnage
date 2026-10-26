@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
@@ -38,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.domain.Format
@@ -54,7 +56,12 @@ class DataActions(
     val onOpenBackup: (Uri) -> Unit,
     val onConfirmRestore: () -> Unit,
     val onDismissBackup: () -> Unit,
+    val onChooseAutoBackup: (Uri) -> Unit,
+    val onTurnOffAutoBackup: () -> Unit,
 )
+
+/** The automatic backup setting: [on] when a folder is chosen; [folderName] may be unreadable. */
+data class AutoBackupInfo(val on: Boolean, val folderName: String?, val error: String?)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +72,7 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     lastBackupAt: Long?,
     backupState: BackupState?,
+    autoBackup: AutoBackupInfo,
     data: DataActions,
     modifier: Modifier = Modifier,
 ) {
@@ -73,6 +81,7 @@ fun SettingsScreen(
         uri?.let(data.onSaveBackup)
     }
     val openFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(data.onOpenBackup) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri -> uri?.let(data.onChooseAutoBackup) }
 
     Scaffold(
         modifier = modifier,
@@ -141,6 +150,30 @@ fun SettingsScreen(
                             "A workout in progress isn't included in a backup.\n" +
                             Format.lastBackup(lastBackupAt, System.currentTimeMillis()),
                     )
+                },
+            )
+            ListItem(
+                modifier = Modifier.clickable { pickFolder.launch(null) },
+                leadingContent = { Icon(Icons.Filled.FolderOpen, contentDescription = null) },
+                headlineContent = { Text("Automatic backup") },
+                supportingContent = {
+                    Column {
+                        Text(
+                            if (autoBackup.on) {
+                                "After every workout, to the folder “${autoBackup.folderName ?: "chosen folder"}”. The newest ${AutoBackup.KEEP} are kept. Tap to pick another folder."
+                            } else {
+                                "Off. Pick a folder and a backup is saved there after every workout."
+                            },
+                        )
+                        autoBackup.error?.let {
+                            Text("Last automatic backup failed: $it", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                },
+                trailingContent = if (autoBackup.on) {
+                    { TextButton(onClick = data.onTurnOffAutoBackup) { Text("Turn off") } }
+                } else {
+                    null
                 },
             )
             ListItem(
