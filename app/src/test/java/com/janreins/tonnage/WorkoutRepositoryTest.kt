@@ -16,6 +16,7 @@ import com.janreins.tonnage.data.repository.ExerciseRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.domain.PrKind
+import com.janreins.tonnage.domain.ProgressionHint
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -457,6 +458,34 @@ class WorkoutRepositoryTest {
         assertNull(db.workoutDao().getWorkout(id))
         assertTrue(workouts.observeHistory().first().isEmpty())
         assertTrue(db.workoutDao().observeProgressSets().first().isEmpty())
+    }
+
+    @Test
+    fun hintFillsBlankAndPlannedWorkingSetsOnly() = runTest {
+        startPlannedWorkout()
+        var squat = active().blocks[0]
+        val exerciseId = squat.workoutExercise.id
+        assertTrue(workouts.complete(squat.sets[0].id, squat.trackingType, null))
+        workouts.setWeight(squat.sets[1].id, 70.0)
+        repeat(2) { workouts.addSet(exerciseId) }
+        squat = active().blocks[0]
+        // Set 4 is an untouched copy made a warm-up; set 5 is cleared.
+        workouts.setType(squat.sets[3].id, SetType.WARMUP)
+        workouts.setWeight(squat.sets[4].id, null)
+        workouts.setReps(squat.sets[4].id, null)
+
+        val filled = workouts.fillHint(active().blocks[0], ProgressionHint("try", 62.5, 8))
+
+        assertEquals(2, filled)
+        val block = active().blocks[0]
+        val sets = block.sets
+        assertEquals(
+            listOf(60.0 to 5, 70.0 to 5, 62.5 to 8, 60.0 to 5, 62.5 to 8),
+            sets.map { it.weightKg to it.reps },
+        )
+        assertEquals(listOf(true, false, false, false, false), sets.map { it.completed })
+        // The filled sets now count as entered, so Finish offers to tick them.
+        assertTrue(block.isEntered(sets[2]) && block.isEntered(sets[4]))
     }
 
 }

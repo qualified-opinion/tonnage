@@ -125,6 +125,40 @@ class MigrationTest {
         }
     }
 
+    /** Version 4: the 1.x APKs' tables (adds remembered Hevy matches), with one saved. */
+    private fun createVersion4() {
+        createVersion3()
+        SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READWRITE).use { v4 ->
+            v4.execSQL(
+                "CREATE TABLE IF NOT EXISTS `hevy_mappings` (`hevyName` TEXT NOT NULL, `exerciseId` TEXT NOT NULL, PRIMARY KEY(`hevyName`))",
+            )
+            v4.execSQL("INSERT INTO hevy_mappings VALUES ('landmine press', 'custom-1')")
+            v4.version = 4
+        }
+    }
+
+    @Test
+    fun version4DataSurvivesAndBodyWeightsWork() = runTest {
+        createVersion4()
+        val db = AppDatabase.build(context, name)
+        try {
+            assertEquals(listOf("Push", "Push A"), listOf(1L, 2L).map { db.workoutDao().getWorkout(it)!!.title })
+            assertEquals(listOf(40.0, 42.5), listOf(1L, 2L).map { db.workoutDao().getSet(it)!!.weightKg })
+            assertEquals("Push A", db.routineDao().getRoutine(7)!!.name)
+            assertEquals(Triple(SetType.WARMUP, 20.0, 12), db.routineDao().getSets(7).single().let { Triple(it.type, it.weightKg, it.reps) })
+            assertEquals("Landmine Press", db.exerciseDao().observeById("custom-1").first()!!.name)
+            assertEquals(listOf(HevyMapping("landmine press", "custom-1")), db.importDao().mappings())
+
+            val bodyWeights = db.bodyWeightDao()
+            assertEquals(emptyList<Any>(), bodyWeights.all())
+            bodyWeights.upsert(epochDay = 20_000, weightKg = 82.4)
+            bodyWeights.upsert(epochDay = 20_000, weightKg = 81.9)
+            assertEquals(listOf(20_000L to 81.9), bodyWeights.all().map { it.epochDay to it.weightKg })
+        } finally {
+            db.close()
+        }
+    }
+
     @Test
     fun version3RoutinesAndHistorySurviveAndHevyMatchesWork() = runTest {
         createVersion3()

@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -48,6 +49,8 @@ import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.ui.data.DataViewModel
 import com.janreins.tonnage.ui.data.ImportScreen
 import com.janreins.tonnage.ui.exercises.AddExerciseDialog
+import com.janreins.tonnage.ui.bodyweight.BodyWeightScreen
+import com.janreins.tonnage.ui.bodyweight.BodyWeightViewModel
 import com.janreins.tonnage.ui.exercises.ExerciseDetailScreen
 import com.janreins.tonnage.ui.exercises.ExercisesScreen
 import com.janreins.tonnage.ui.exercises.ExercisesViewModel
@@ -59,6 +62,7 @@ import com.janreins.tonnage.ui.progress.ProgressScreen
 import com.janreins.tonnage.ui.progress.ProgressViewModel
 import com.janreins.tonnage.ui.routines.RoutineEditorScreen
 import com.janreins.tonnage.ui.routines.RoutinesViewModel
+import com.janreins.tonnage.ui.settings.AutoBackupInfo
 import com.janreins.tonnage.ui.settings.DataActions
 import com.janreins.tonnage.ui.settings.SettingsScreen
 import com.janreins.tonnage.ui.state.MainTab
@@ -68,7 +72,6 @@ import com.janreins.tonnage.ui.workout.WorkoutTab
 import com.janreins.tonnage.ui.workout.WorkoutViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 private enum class PickerTarget { WORKOUT, ROUTINE, EDITED_WORKOUT, IMPORT_MATCH }
 
@@ -105,6 +108,7 @@ private fun TonnageApp() {
     val context = LocalContext.current
     var tab by rememberSaveable { mutableStateOf(MainTab.WORKOUT) }
     var openExerciseId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showBodyWeight by rememberSaveable { mutableStateOf(false) }
     // Which screen the exercise picker adds to, or null when it's closed.
     var pickerTarget by rememberSaveable { mutableStateOf<PickerTarget?>(null) }
     var pickerSelection by rememberSaveable { mutableStateOf(listOf<String>()) }
@@ -116,6 +120,7 @@ private fun TonnageApp() {
     val routinesViewModel: RoutinesViewModel = viewModel()
     val dataViewModel: DataViewModel = viewModel()
     val progressViewModel: ProgressViewModel = viewModel()
+    val bodyWeightViewModel: BodyWeightViewModel = viewModel()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         progressViewModel.refresh()
         workoutViewModel.ensureService()
@@ -170,6 +175,17 @@ private fun TonnageApp() {
                         }
                     }
                 },
+            )
+        }
+        showBodyWeight -> {
+            BackHandler { showBodyWeight = false }
+            val entries by bodyWeightViewModel.entries.collectAsStateWithLifecycle()
+            BodyWeightScreen(
+                entries = entries,
+                today = bodyWeightViewModel.today(),
+                onSave = bodyWeightViewModel::save,
+                onDelete = bodyWeightViewModel::delete,
+                onBack = { showBodyWeight = false },
             )
         }
         target != null -> {
@@ -287,6 +303,9 @@ private fun TonnageApp() {
                         val restSeconds by settings.defaultRestSeconds.collectAsStateWithLifecycle()
                         val themeMode by settings.themeMode.collectAsStateWithLifecycle()
                         val lastBackupAt by settings.lastBackupAt.collectAsStateWithLifecycle()
+                        val autoFolder by dataViewModel.autoBackupFolder.collectAsStateWithLifecycle()
+                        val autoFolderName by dataViewModel.autoBackupFolderName.collectAsStateWithLifecycle()
+                        val autoError by dataViewModel.autoBackupError.collectAsStateWithLifecycle()
                         SettingsScreen(
                             defaultRestSeconds = restSeconds,
                             onDefaultRestChange = settings::setDefaultRestSeconds,
@@ -294,12 +313,17 @@ private fun TonnageApp() {
                             onThemeModeChange = settings::setThemeMode,
                             lastBackupAt = lastBackupAt,
                             backupState = backupState,
+                            onOpenBodyWeight = { showBodyWeight = true },
+                            autoBackup = AutoBackupInfo(on = autoFolder != null, folderName = autoFolderName, error = autoError),
                             data = DataActions(
                                 onImportHevy = dataViewModel::startImport,
                                 onSaveBackup = dataViewModel::saveBackup,
                                 onOpenBackup = dataViewModel::openBackup,
                                 onConfirmRestore = dataViewModel::confirmRestore,
                                 onDismissBackup = dataViewModel::dismissBackup,
+                                onExportCsv = dataViewModel::exportCsv,
+                                onChooseAutoBackup = dataViewModel::chooseAutoBackupFolder,
+                                onTurnOffAutoBackup = dataViewModel::turnOffAutoBackup,
                             ),
                             modifier = modifier,
                         )
@@ -354,7 +378,7 @@ private fun MainTabs(tab: MainTab, onTabChange: (MainTab) -> Unit, content: @Com
 
 @Composable
 private fun ResumeDialog(workout: Workout, onResume: () -> Unit, onDiscard: () -> Unit) {
-    val started = SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(workout.startedAt))
+    val started = SimpleDateFormat("EEE d MMM, HH:mm", LocalLocale.current.platformLocale).format(Date(workout.startedAt))
     val elapsed = Format.duration(System.currentTimeMillis() - workout.startedAt)
     var confirmDiscard by remember { mutableStateOf(false) }
     AlertDialog(

@@ -46,6 +46,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,6 @@ import com.janreins.tonnage.ui.workout.RecordLine
 import com.janreins.tonnage.ui.workout.SetActions
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 /** A finished workout from history: every set and its records, with edit, delete and save as routine. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,7 +139,7 @@ fun WorkoutDetailScreen(
 private fun ViewContent(workout: ActiveWorkout, records: List<PersonalRecord>, modifier: Modifier) {
     val endedAt = workout.workout.endedAt ?: workout.workout.startedAt
     val summary = WorkoutStats.summarize(workout.blocks, workout.workout.startedAt, endedAt)
-    val date = SimpleDateFormat("EEEE d MMMM yyyy · HH:mm", Locale.getDefault()).format(Date(workout.workout.startedAt))
+    val date = SimpleDateFormat("EEEE d MMMM yyyy · HH:mm", LocalLocale.current.platformLocale).format(Date(workout.workout.startedAt))
     val recordSetIds = records.map { it.setId }.toSet()
 
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

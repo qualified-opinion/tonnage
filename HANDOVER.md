@@ -1,10 +1,10 @@
 # Tonnage handover
 
-Read this, then `AGENTS.md` (the rules) and `docs/plan/ROADMAP.md` (status and what is next), before changing anything. This file says how the app is put together and how it gets built and released. The roadmap says what to work on, and its GitHub tracking issue (#25) lists the remaining PRs as self-contained issues.
+Read this, then `AGENTS.md` (the rules) and `docs/plan/ROADMAP.md` (status and what is next), before changing anything. This file says how the app is put together and how it gets built and released. The roadmap says what to work on, and its GitHub tracking issue (#65) lists the remaining PRs as self-contained issues.
 
 ## The short version
 - **What it is:** a private, offline strength logger for Android that replaces Hevy, minus the social features. One user (the owner, Jan), data on the phone only.
-- **Stack:** Kotlin 2.4, Jetpack Compose, Material 3, Room (SQLite). minSdk 26, targetSdk/compileSdk 35, JDK 17 in CI, Java 11 bytecode. Set up like the owner's other app, Piso.
+- **Stack:** Kotlin 2.4, Jetpack Compose, Material 3, Room (SQLite). minSdk 26, compileSdk 37 (needed by Compose 1.12), targetSdk 35, JDK 17 in CI, Java 11 bytecode. Set up like the owner's other app, Piso.
 - **Package / application id:** `com.janreins.tonnage`. **Never change it.** Android treats a new id as a different app, so the owner's installed history would be stranded.
 - **No network.** There is no `INTERNET` permission, no analytics and no sync. Keep it that way (see `AGENTS.md`).
 - **The owner is not a developer.** The owner installs APKs from GitHub Releases and merges PRs from the PR page. Explain changes in plain language, and always open PRs against `main` (a PR based on another branch merges into that branch, not `main`).
@@ -33,7 +33,7 @@ docs/plan/                  roadmap, batch handoff packs, reviews
 
 How a change flows: a screen calls its ViewModel, the ViewModel calls a repository, the repository writes to Room. Screens observe Room through `Flow`s, so the screen updates itself after the write. Nothing important is held only in memory during a workout.
 
-## Data model (Room, database `tonnage_database`, version 4)
+## Data model (Room, database `tonnage_database`, version 5)
 
 | Table | Holds | Notes |
 |---|---|---|
@@ -43,16 +43,17 @@ How a change flows: a screen calls its ViewModel, the ViewModel calls a reposito
 | `workout_sets` | the sets | weight in **kg** always; `type` warm-up / normal / drop / failure; `completed` = ticked |
 | `routines`, `routine_exercises`, `routine_sets` | templates | saved in one transaction by `RoutineDao.save` |
 | `hevy_mappings` | remembered Hevy name to exercise matches | key is `ExerciseMatcher.normalizeName` |
+| `body_weights` | body weight log, in **kg** | one row per day (unique `epochDay`); saving a day again replaces it |
 
 Not stored on purpose: personal records, milestones and progress stats. They are recomputed from sets every time, so editing or deleting an old workout can never leave a stale record.
 
-**Migrations:** 1 to 2 (workouts), 2 to 3 (routines, `workouts.routineId`), 3 to 4 (`hevy_mappings`), all in `AppDatabase.kt`. Rules for the next one:
-1. Bump `version`, write a `MIGRATION_4_5` that keeps every row, and add it to `addMigrations`.
-2. Add a case to `MigrationTest` that builds version 4 with real rows and opens it with the new app.
+**Migrations:** 1 to 2 (workouts), 2 to 3 (routines, `workouts.routineId`), 3 to 4 (`hevy_mappings`), 4 to 5 (`body_weights`), all in `AppDatabase.kt`. Rules for the next one:
+1. Bump `version`, write a `MIGRATION_5_6` that keeps every row, and add it to `addMigrations`.
+2. Add a case to `MigrationTest` that builds version 5 with real rows and opens it with the new app.
 3. Never use `fallbackToDestructiveMigration`. It would wipe the owner's history.
 4. Commit the new schema JSON from `app/schemas`. CI's "Check Room schemas are committed" step fails when the build writes a schema that isn't in git, and prints the file to commit (it is also in the run's `room-schemas` artifact).
 
-**Backups** (`data/backup`) are JSON with `format` and `schemaVersion`. Bump `BackupJson.SCHEMA_VERSION` for any change an older app could not read, and keep the reader able to read every older version. Restore checks everything first, then replaces data in one transaction, and refuses while a workout is in progress.
+**Backups** (`data/backup`) are JSON with `format` and `schemaVersion`. Bump `BackupJson.SCHEMA_VERSION` for any change an older app could not read, and keep the reader able to read every older version. Version 2 added `bodyWeights`; a version 1 file restores without touching body weights. Restore checks everything first, then replaces data in one transaction, and refuses while a workout is in progress.
 
 ## Build, test and release
 
@@ -82,4 +83,4 @@ The full list is in `AGENTS.md`. The ones most likely to cause damage if missed:
 - Every fix gets a test that fails on the old code. Every batch PR updates `docs/plan/ROADMAP.md`, and `AGENTS.md` when a convention changes.
 
 ## Starting a session
-Builders start with `docs/plan/BUILDER.md` (it has the starter prompt) and do one issue from tracking issue #25 per PR. Reviews follow `docs/plan/REVIEW.md`; the owner merges.
+Builders start with `docs/plan/BUILDER.md` (it has the starter prompt) and do one issue from tracking issue #65 per PR. Reviews follow `docs/plan/REVIEW.md`; the owner merges.

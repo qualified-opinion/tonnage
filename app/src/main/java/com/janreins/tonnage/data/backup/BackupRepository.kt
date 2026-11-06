@@ -1,9 +1,12 @@
 package com.janreins.tonnage.data.backup
 
 import androidx.room.withTransaction
+import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.data.settings.ThemeMode
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.RoutineContents
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Restoring would delete the workout being logged, so it has to be finished or discarded first. */
 class WorkoutInProgressException : Exception("Finish or discard the workout in progress before restoring a backup.")
@@ -13,6 +16,18 @@ class BackupRepository(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val dao = db.importDao()
+
+    /**
+     * A backup file's contents and bytes, encoded off the main thread. The manual and the
+     * automatic backup both write exactly this, so the two files can never differ.
+     */
+    suspend fun exportFile(
+        settings: SettingsStore,
+        encode: (BackupContents) -> ByteArray = { BackupJson.encode(it) },
+    ): Pair<BackupContents, ByteArray> {
+        val contents = export(settings.defaultRestSeconds.value, settings.themeMode.value, settings.hevyImportZone)
+        return contents to withContext(Dispatchers.IO) { encode(contents) }
+    }
 
     /** Reads everything worth keeping. The workout in progress, if any, isn't included. */
     suspend fun export(
@@ -40,12 +55,14 @@ class BackupRepository(
                 RoutineContents(routine, routineExercises[routine.id].orEmpty().map { it to routineSets[it.id].orEmpty() })
             },
             hevyMappings = dao.mappings(),
+            bodyWeights = db.bodyWeightDao().all(),
         )
     }
 
     /**
-     * Replaces workouts, routines, custom exercises and remembered Hevy matches with the
-     * backup's, in one transaction: if anything fails, nothing changes.
+     * Replaces workouts, routines, custom exercises, remembered Hevy matches and (from a
+     * version 2 file) body weights with the backup's, in one transaction: if anything fails,
+     * nothing changes.
      */
     suspend fun restore(contents: BackupContents) = db.withTransaction {
         if (db.workoutDao().getActive() != null) throw WorkoutInProgressException()
@@ -68,6 +85,10 @@ class BackupRepository(
             contents.routines.flatMap { r -> r.exercises.map { it.first.exerciseId } } +
             contents.hevyMappings.map { it.exerciseId }
         if (referencedIds.any { it !in availableIds }) throw BackupFormatException()
+        val bodyWeights = contents.bodyWeights
+        if (bodyWeights != null && bodyWeights.map { it.epochDay }.toSet().size != bodyWeights.size) {
+            throw BackupFormatException(BackupJson.DUPLICATE_BODY_WEIGHT)
+        }
 
         dao.deleteAllWorkouts()
         dao.deleteAllRoutines()
@@ -94,5 +115,10 @@ class BackupRepository(
         val workoutDao = db.workoutDao()
         contents.workouts.forEach { workoutDao.insertWorkoutWithContents(it.workout.copy(id = 0), it.exercises) }
         if (contents.hevyMappings.isNotEmpty()) dao.saveMappings(contents.hevyMappings)
+        // An old (version 1) file has no body weights, so the ones on the phone stay.
+        if (bodyWeights != null) {
+            db.bodyWeightDao().deleteAll()
+            db.bodyWeightDao().insertAll(bodyWeights.map { it.copy(id = 0) })
+        }
     }
 }

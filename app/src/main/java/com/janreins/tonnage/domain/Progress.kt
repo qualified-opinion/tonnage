@@ -120,6 +120,27 @@ object Progress {
             .sortedBy { it.startedAt }
     }
 
+    const val RECENT_SESSIONS = 10
+
+    /** The newest [RECENT_SESSIONS] of [sessions] (oldest first), newest first. */
+    fun newestSessions(sessions: List<ExerciseSession>): List<ExerciseSession> =
+        sessions.takeLast(RECENT_SESSIONS).reversed()
+
+    /**
+     * How many sessions (oldest first) came after the latest one that set a new best of [metric],
+     * meaning strictly higher than every earlier session. The first session counts as a best.
+     */
+    fun sessionsSinceBest(sessions: List<ExerciseSession>, metric: ProgressMetric): Int {
+        var best = Double.NEGATIVE_INFINITY
+        var lastBest = -1
+        sessions.forEachIndexed { index, session ->
+            val value = session.values[metric] ?: 0.0
+            if (index == 0 || value > best) lastBest = index
+            best = maxOf(best, value)
+        }
+        return if (lastBest < 0) 0 else sessions.lastIndex - lastBest
+    }
+
     /** Exercises done in finished workouts, most recently done first. */
     fun exercises(sets: List<ProgressSet>): List<ExerciseProgress> =
         sets.groupBy { it.exerciseId }.map { (exerciseId, exerciseSets) ->

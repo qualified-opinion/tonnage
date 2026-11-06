@@ -2,6 +2,7 @@ package com.janreins.tonnage.data.backup
 
 import com.janreins.tonnage.data.hevy.BACKUP_BYTE_LIMIT
 import com.janreins.tonnage.data.settings.ThemeMode
+import com.janreins.tonnage.data.model.BodyWeight
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.HevyMapping
 import com.janreins.tonnage.data.model.RoutineContents
@@ -18,6 +19,8 @@ import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 /** A finished workout with its exercises and sets, as kept in a backup. */
 data class BackupWorkout(val workout: Workout, val exercises: List<Pair<WorkoutExercise, List<WorkoutSet>>>)
@@ -32,6 +35,8 @@ data class BackupContents(
     val hevyMappings: List<HevyMapping>,
     val themeMode: ThemeMode? = null,
     val hevyImportZone: String? = null,
+    /** Null for a version 1 file, which has none: restoring it leaves body weights alone. */
+    val bodyWeights: List<BodyWeight>? = null,
 )
 
 class BackupFormatException(message: String = "This file is incomplete or damaged. Nothing was changed.") : Exception(message)
@@ -48,7 +53,11 @@ class BackupTooLargeException : Exception(
  */
 object BackupJson {
     const val FORMAT = "tonnage-backup"
-    const val SCHEMA_VERSION = 1
+    /** 2 added `bodyWeights`. */
+    const val SCHEMA_VERSION = 2
+    const val MAX_BODY_WEIGHT_KG = 1000.0
+    private const val BAD_BODY_WEIGHT = "A body weight in the file isn't valid. Nothing was changed."
+    const val DUPLICATE_BODY_WEIGHT = "The file has two body weights on the same date. Nothing was changed."
 
     fun write(contents: BackupContents): String = JSONObject().apply {
         put("format", FORMAT)
@@ -62,6 +71,10 @@ object BackupJson {
         put(
             "hevyMappings",
             JSONArray(contents.hevyMappings.map { JSONObject().put("hevyName", it.hevyName).put("exerciseId", it.exerciseId) }),
+        )
+        put(
+            "bodyWeights",
+            JSONArray(contents.bodyWeights.orEmpty().map { JSONObject().put("date", it.date.toString()).put("weightKg", it.weightKg) }),
         )
     }.toString(1)
 
@@ -95,6 +108,7 @@ object BackupJson {
                 workouts = root.objects("workouts").map(::workout),
                 routines = root.objects("routines").map(::routine),
                 hevyMappings = root.objects("hevyMappings").map { HevyMapping(it.string("hevyName"), it.string("exerciseId")) },
+                bodyWeights = if (version >= 2) bodyWeights(root.objects("bodyWeights"), root.longValue("exportedAt")) else null,
             )
         } catch (e: JSONException) {
             throw BackupFormatException()
@@ -282,6 +296,21 @@ object BackupJson {
             }
         },
     )
+
+    private fun bodyWeights(entries: List<JSONObject>, createdAt: Long): List<BodyWeight> {
+        val weights = entries.map { o ->
+            val date = try {
+                LocalDate.parse(o.string("date"))
+            } catch (e: DateTimeParseException) {
+                throw BackupFormatException(BAD_BODY_WEIGHT)
+            }
+            val kg = o.number("weightKg").toDouble()
+            if (!kg.isFinite() || kg <= 0.0 || kg > MAX_BODY_WEIGHT_KG) throw BackupFormatException(BAD_BODY_WEIGHT)
+            BodyWeight(epochDay = date.toEpochDay(), weightKg = kg, createdAt = createdAt)
+        }
+        if (weights.map { it.epochDay }.toSet().size != weights.size) throw BackupFormatException(DUPLICATE_BODY_WEIGHT)
+        return weights
+    }
 
     private fun routine(o: JSONObject) = RoutineContents(
         routine = Routine(

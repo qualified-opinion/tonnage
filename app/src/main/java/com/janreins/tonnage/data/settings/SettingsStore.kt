@@ -47,6 +47,25 @@ class SettingsStore internal constructor(context: Context) {
         _lastBackupAt.value = timeMs
     }
 
+    private val _autoBackupFolder = MutableStateFlow(prefs.getString(KEY_AUTO_FOLDER, null))
+    /** The folder (a document tree URI) automatic backups go to; null when they're off. */
+    val autoBackupFolder: StateFlow<String?> = _autoBackupFolder.asStateFlow()
+
+    fun setAutoBackupFolder(treeUri: String?) {
+        prefs.edit { putString(KEY_AUTO_FOLDER, treeUri).remove(KEY_AUTO_ERROR) }
+        _autoBackupFolder.value = treeUri
+        _autoBackupError.value = null
+    }
+
+    private val _autoBackupError = MutableStateFlow(prefs.getString(KEY_AUTO_ERROR, null))
+    /** Why the last automatic backup failed; null after a success. */
+    val autoBackupError: StateFlow<String?> = _autoBackupError.asStateFlow()
+
+    fun setAutoBackupError(message: String?) {
+        prefs.edit { putString(KEY_AUTO_ERROR, message) }
+        _autoBackupError.value = message
+    }
+
     /** Kept separate from the device zone so travelling cannot change imported identities. */
     val hevyImportZone: String? get() = prefs.getString(KEY_HEVY_ZONE, null)
 
@@ -77,6 +96,8 @@ class SettingsStore internal constructor(context: Context) {
         private const val KEY_THEME = "theme_mode"
         private const val KEY_LAST_BACKUP = "last_backup_at"
         private const val KEY_LIBRARY_VERSION = "library_seed_version"
+        private const val KEY_AUTO_FOLDER = "auto_backup_folder"
+        private const val KEY_AUTO_ERROR = "auto_backup_error"
 
         @Volatile
         private var instance: SettingsStore? = null
