@@ -70,7 +70,7 @@ jobs:
           fi
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tonnage-debug-apk
           path: app/build/outputs/apk/debug/*.apk
@@ -79,7 +79,7 @@ jobs:
 
       # Room writes its schema JSON during the build; keep it so it can be committed for migration tests.
       - name: Upload Room schemas
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: room-schemas
           path: app/schemas/
@@ -88,7 +88,7 @@ jobs:
 
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: app/build/reports/tests/
