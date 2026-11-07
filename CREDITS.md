@@ -13,3 +13,7 @@ The app shows this credit under More > Credits.
 ## Exercise library
 
 `app/src/main/assets/exercises.json` is a trimmed copy of [free-exercise-db](https://github.com/yuhonas/free-exercise-db), released into the public domain.
+
+## Exercise pictures
+
+The pictures on each exercise's page (`app/src/main/assets/exercise_images`) are the photos from [free-exercise-db](https://github.com/yuhonas/free-exercise-db), also released into the public domain. They were shrunk to 360 px wide WebP files by `tools/exercise-images/convert.py`. Three kettlebell exercises have no photo upstream and show a placeholder.
