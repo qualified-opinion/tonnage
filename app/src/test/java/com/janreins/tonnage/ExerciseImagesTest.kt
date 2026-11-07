@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import java.io.File
 import java.io.IOException
 
 @RunWith(AndroidJUnit4::class)
@@ -54,7 +55,10 @@ class ExerciseImagesTest {
 
     @Test
     fun noPicturesForExercisesThatAreNotInTheLibrary() {
-        val folders = assets.list(ExerciseImages.FOLDER).orEmpty().toSet()
+        // Robolectric's AssetManager.list doesn't list the merged asset folders reliably, so read the source folder.
+        val source = listOf("src/main/assets", "app/src/main/assets").map { File(it, ExerciseImages.FOLDER) }.first { it.isDirectory }
+        val folders = source.list().orEmpty().toSet()
+        assertTrue(folders.size > 800)
         assertEquals(emptySet<String>(), folders - library.map { it.id }.toSet())
     }
 
