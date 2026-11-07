@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.ExerciseOptions
 import com.janreins.tonnage.domain.ExerciseSession
+import com.janreins.tonnage.ui.components.ExercisePictures
 import com.janreins.tonnage.ui.progress.ExerciseProgressSection
 import com.janreins.tonnage.ui.progress.RecentSessionsCard
 
@@ -67,6 +68,7 @@ fun ExerciseDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            item(key = "pictures") { ExercisePictures(exercise) }
             if (progress.isNotEmpty()) {
                 item { ExerciseProgressSection(progress, exercise.trackingType) }
                 item { RecentSessionsCard(progress, exercise.trackingType) }
