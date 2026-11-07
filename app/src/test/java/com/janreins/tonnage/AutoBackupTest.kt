@@ -110,8 +110,9 @@ class AutoBackupTest {
         (10..19).forEach { folder.files["tonnage-auto-2026-10-$it.json"] = ByteArray(0) }
         folder.files["mine.json"] = ByteArray(0)
         backUp(folder, "today")
+        // The newest seven stay, and 11 October as the newest of its week; 10, 12 and 13 October go.
         assertEquals(
-            (listOf("mine.json") + (14..19).map { "tonnage-auto-2026-10-$it.json" } + "tonnage-auto-2026-10-26.json").sorted(),
+            (listOf("mine.json", "tonnage-auto-2026-10-11.json") + (14..19).map { "tonnage-auto-2026-10-$it.json" } + "tonnage-auto-2026-10-26.json").sorted(),
             folder.names().sorted(),
         )
     }
