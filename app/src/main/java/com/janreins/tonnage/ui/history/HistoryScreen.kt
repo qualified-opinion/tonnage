@@ -6,24 +6,27 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -45,30 +48,57 @@ fun HistoryScreen(
     records: Map<Long, List<PersonalRecord>>,
     onOpen: (WorkoutSummary) -> Unit,
     modifier: Modifier = Modifier,
+    backupError: String? = null,
+    onOpenSettings: () -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { TopAppBar(title = { Text("History") }) },
     ) { padding ->
-        val content = Modifier.padding(padding).fillMaxSize()
-        when {
-            workouts == null -> Box(content, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            workouts.isEmpty() -> ComingSoon(
-                Icons.Filled.History,
-                "No workouts yet",
-                "Finished workouts show up here. To bring in your Hevy history, use Import from Hevy on the More tab.",
-                content,
-            )
-            else -> LazyColumn(
-                content,
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(workouts, key = { it.id }) { workout ->
-                    WorkoutCard(workout, records[workout.id].orEmpty().size, onClick = { onOpen(workout) })
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            backupError?.let { BackupWarning(it, onOpenSettings) }
+            val content = Modifier.weight(1f).fillMaxWidth()
+            when {
+                workouts == null -> Box(content, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                workouts.isEmpty() -> ComingSoon(
+                    Icons.Filled.History,
+                    "No workouts yet",
+                    "Finished workouts show up here. To bring in your Hevy history, use Import from Hevy on the More tab.",
+                    content,
+                )
+                else -> LazyColumn(
+                    content,
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(workouts, key = { it.id }) { workout ->
+                        WorkoutCard(workout, records[workout.id].orEmpty().size, onClick = { onOpen(workout) })
+                    }
                 }
             }
+        }
+    }
+}
+
+/** Shown while the automatic backup is failing, so it can't go unnoticed for weeks. */
+@Composable
+private fun BackupWarning(error: String, onOpenSettings: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        ),
+        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    ) {
+        Row(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 12.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Warning, contentDescription = null)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Automatic backup isn't working", style = MaterialTheme.typography.titleSmall)
+                Text("The last one failed: $error", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = onOpenSettings) { Text("Fix") }
         }
     }
 }

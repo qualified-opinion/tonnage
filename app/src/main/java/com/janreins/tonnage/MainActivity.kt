@@ -285,7 +285,16 @@ private fun TonnageApp() {
                     MainTab.HISTORY -> {
                         val records by historyViewModel.records.collectAsStateWithLifecycle()
                         val workouts by historyViewModel.workouts.collectAsStateWithLifecycle()
-                        HistoryScreen(workouts, records, onOpen = { historyViewModel.open(it.id) }, modifier = modifier)
+                        val autoFolder by dataViewModel.autoBackupFolder.collectAsStateWithLifecycle()
+                        val autoError by dataViewModel.autoBackupError.collectAsStateWithLifecycle()
+                        HistoryScreen(
+                            workouts,
+                            records,
+                            onOpen = { historyViewModel.open(it.id) },
+                            modifier = modifier,
+                            backupError = autoError.takeIf { autoFolder != null },
+                            onOpenSettings = { tab = MainTab.MORE },
+                        )
                     }
                     MainTab.EXERCISES -> ExercisesScreen(
                         state = exercisesState,

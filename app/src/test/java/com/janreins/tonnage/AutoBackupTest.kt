@@ -62,8 +62,28 @@ class AutoBackupTest {
     fun retentionKeepsTheNewestSevenAndNeverOtherFiles() {
         val autos = (1..9).map { "tonnage-auto-2026-10-0$it.json" }
         val others = listOf("tonnage-backup-2026-10-01.json", "tonnage-auto-2026-10-01.json.tmp", "notes.txt", "tonnage-auto-latest.json")
-        assertEquals(listOf("tonnage-auto-2026-10-02.json", "tonnage-auto-2026-10-01.json"), AutoBackup.toDelete(others + autos.shuffled()))
-        assertTrue(AutoBackup.toDelete(others).isEmpty())
+        assertEquals(listOf("tonnage-auto-2026-10-02.json", "tonnage-auto-2026-10-01.json"), AutoBackup.toDelete(others + autos.shuffled(), today))
+        assertTrue(AutoBackup.toDelete(others, today).isEmpty())
+    }
+
+    @Test
+    fun retentionAlsoKeepsTheNewestFileOfEachOfTheLastEightWeeks() {
+        // A backup every day for 100 days up to Monday 26 October 2026.
+        val names = (0L until 100L).map { AutoBackup.fileName(today.minusDays(it)) }
+        val kept = (names - AutoBackup.toDelete(names.shuffled(), today).toSet()).sortedDescending()
+        val newestSeven = (0L until 7L).map { AutoBackup.fileName(today.minusDays(it)) }
+        // Each earlier week's Sunday, back to the week starting Monday 7 September (eight weeks with this one).
+        val sundays = listOf("2026-10-18", "2026-10-11", "2026-10-04", "2026-09-27", "2026-09-20", "2026-09-13")
+            .map { AutoBackup.fileName(LocalDate.parse(it)) }
+        assertEquals(newestSeven + sundays, kept)
+    }
+
+    @Test
+    fun weeklyBackupsSurviveAFewBusyDays() {
+        // Seven backups in the last few days must not push out last week's and older ones.
+        val recent = (0L until 7L).map { AutoBackup.fileName(today.minusDays(it)) }
+        val older = listOf("2026-10-14", "2026-10-07", "2026-08-01").map { AutoBackup.fileName(LocalDate.parse(it)) }
+        assertEquals(listOf(AutoBackup.fileName(LocalDate.parse("2026-08-01"))), AutoBackup.toDelete(recent + older, today))
     }
 
     @Test

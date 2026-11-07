@@ -174,9 +174,9 @@ fun SettingsScreen(
                     Column {
                         Text(
                             if (autoBackup.on) {
-                                "After every workout, to the folder “${autoBackup.folderName ?: "chosen folder"}”. The newest ${AutoBackup.KEEP} are kept. Tap to pick another folder."
+                                "After every workout and change, to the folder “${autoBackup.folderName ?: "chosen folder"}”. The newest ${AutoBackup.KEEP} are kept, plus one a week for ${AutoBackup.WEEKS} weeks. Tap to pick another folder."
                             } else {
-                                "Off. Pick a folder and a backup is saved there after every workout."
+                                "Off. Pick a folder and a backup is saved there after every workout and change."
                             },
                         )
                         autoBackup.error?.let {

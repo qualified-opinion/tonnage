@@ -3,6 +3,7 @@ package com.janreins.tonnage.ui.bodyweight
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.BodyWeight
 import com.janreins.tonnage.domain.BodyWeights
@@ -47,11 +48,17 @@ class BodyWeightViewModel @JvmOverloads constructor(
     /** Saves [weightKg] for [date], replacing that day's entry. Returns false for a future date or an impossible weight. */
     fun save(date: LocalDate, weightKg: Double?): Boolean {
         if (!BodyWeights.canSave(date, weightKg, today())) return false
-        viewModelScope.launch { dao.upsert(date.toEpochDay(), weightKg!!, clock()) }
+        viewModelScope.launch {
+            dao.upsert(date.toEpochDay(), weightKg!!, clock())
+            AutoBackup.afterChange(getApplication())
+        }
         return true
     }
 
     fun delete(entry: BodyWeight) {
-        viewModelScope.launch { dao.delete(entry.id) }
+        viewModelScope.launch {
+            dao.delete(entry.id)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 }
