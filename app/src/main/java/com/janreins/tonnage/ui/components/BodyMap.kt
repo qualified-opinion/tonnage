@@ -110,7 +110,8 @@ private fun shading(shape: BodyShape, base: Color): Brush {
 /**
  * Front and back anatomy figures with each muscle shaded by its number of sets in [setsByMuscle].
  * Tapping calls [onSelect] with the muscle under the finger (null for skin or empty space); every
- * shape of the [selected] muscle group is outlined.
+ * shape of the [selected] muscle group is outlined. A muscle is fully shaded at the highest count, or at
+ * [fullAt] sets when that is higher, so a few sets don't already look like the most possible.
  */
 @Composable
 fun BodyMap(
@@ -119,10 +120,11 @@ fun BodyMap(
     onSelect: (BodyShape?) -> Unit,
     description: String,
     modifier: Modifier = Modifier,
+    fullAt: Int = 0,
 ) {
     val art = rememberBodyMapArt()
     val highlight = MaterialTheme.colorScheme.onSurface
-    val most = setsByMuscle.filterKeys { it in art.muscles }.values.maxOrNull() ?: 0
+    val most = maxOf(setsByMuscle.filterKeys { it in art.muscles }.values.maxOrNull() ?: 0, fullAt)
     val colors = art.muscles.associateWith { bodyMapColor(BodyMapArt.shade(setsByMuscle[it] ?: 0, most)) }
     val front = remember(art) { drawnShapes(art.front) }
     val back = remember(art) { drawnShapes(art.back) }

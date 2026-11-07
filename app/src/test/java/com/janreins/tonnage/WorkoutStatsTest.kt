@@ -256,4 +256,26 @@ class WorkoutStatsTest {
         }
     }
 
+
+    @Test
+    fun `live muscle map counts ticked working sets per main muscle`() {
+        val dips = Exercise(id = "dips", name = "Dips", category = "strength", equipment = "body only", primaryMuscles = "chest, triceps")
+        val custom = Exercise(id = "custom", name = "Mystery", category = "strength", equipment = "other", primaryMuscles = "")
+        val blocks = listOf(
+            block(bench, 1, set(60.0, 8), set(80.0, 5), set(20.0, 10, type = SetType.WARMUP), set(80.0, 5, completed = false), set(null, null)),
+            block(dips, 2, set(null, 10)),
+            block(custom, 3, set(10.0, 10)),
+            block(pullup, 4, set(null, 8, completed = false)),
+        )
+
+        val muscles = WorkoutStats.muscleSets(blocks)
+
+        // Bench: two ticked working sets; the warm-up, the unticked and the blank ticked set don't count.
+        assertEquals(listOf("chest" to 3, "other" to 1, "triceps" to 1), muscles.map { it.muscle to it.sets })
+    }
+
+    @Test
+    fun `live muscle map is empty before any set is ticked`() {
+        assertTrue(WorkoutStats.muscleSets(listOf(block(bench, 1, set(60.0, 8, completed = false)))).isEmpty())
+    }
 }

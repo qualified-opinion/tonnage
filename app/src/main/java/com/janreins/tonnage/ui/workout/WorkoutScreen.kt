@@ -314,6 +314,10 @@ private fun ActiveWorkoutScreen(
                     context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                 }
             }
+            item(key = "muscle-map") {
+                val showMap by viewModel.showMuscleMap.collectAsStateWithLifecycle()
+                LiveMuscleMap(active.blocks, expanded = showMap, onExpandedChange = viewModel::setShowMuscleMap)
+            }
             itemsIndexed(active.blocks, key = { _, block -> block.workoutExercise.id }) { index, block ->
                 ExerciseCard(
                     block = block,

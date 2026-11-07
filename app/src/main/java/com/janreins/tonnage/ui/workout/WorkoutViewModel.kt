@@ -49,6 +49,10 @@ class WorkoutViewModel @JvmOverloads constructor(
     private val routines = RoutineRepository(db.routineDao(), db.exerciseDao())
     private val settings = SettingsStore.get(application)
 
+    val showMuscleMap: StateFlow<Boolean> = settings.showLiveMuscleMap
+
+    fun setShowMuscleMap(show: Boolean) = settings.setShowLiveMuscleMap(show)
+
     /** False until the database has answered whether a workout is active. */
     private val _loaded = MutableStateFlow(false)
     val loaded: StateFlow<Boolean> = _loaded.asStateFlow()

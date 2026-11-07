@@ -93,6 +93,22 @@ object WorkoutStats {
     }
 
     /** The records tracked for each way of logging an exercise. */
+    /**
+     * Ticked working sets per main muscle in the workout being logged, most worked first, for the
+     * live body map. Counted like the Progress map: warm-ups and blank ticked sets are left out, an
+     * exercise with two main muscles counts for both, and one without muscles counts as "other".
+     */
+    fun muscleSets(blocks: List<ExerciseBlock>): List<MuscleSets> =
+        blocks.flatMap { block ->
+            val muscles = block.exercise?.primaryMuscleList.orEmpty().ifEmpty { listOf(Progress.OTHER_MUSCLE) }
+            val sets = block.sets.count { it.completed && it.type != SetType.WARMUP && SetInput.isFilled(it, block.trackingType) }
+            muscles.map { it to sets }
+        }
+            .filter { it.second > 0 }
+            .groupBy({ it.first }, { it.second })
+            .map { (muscle, counts) -> MuscleSets(muscle, counts.sum()) }
+            .sortedWith(compareByDescending<MuscleSets> { it.sets }.thenBy { it.muscle })
+
     fun recordKinds(type: TrackingType): List<PrKind> = when (type) {
         TrackingType.WEIGHT_REPS -> listOf(PrKind.HEAVIEST_WEIGHT, PrKind.BEST_ONE_REP_MAX)
         TrackingType.BODYWEIGHT_REPS -> listOf(PrKind.MOST_REPS)
