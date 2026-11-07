@@ -66,6 +66,15 @@ class SettingsStore internal constructor(context: Context) {
         _autoBackupError.value = message
     }
 
+    private val _showLiveMuscleMap = MutableStateFlow(prefs.getBoolean(KEY_LIVE_MAP, true))
+    /** Whether the workout screen shows the body map of muscles worked so far, or keeps it folded. */
+    val showLiveMuscleMap: StateFlow<Boolean> = _showLiveMuscleMap.asStateFlow()
+
+    fun setShowLiveMuscleMap(show: Boolean) {
+        prefs.edit { putBoolean(KEY_LIVE_MAP, show) }
+        _showLiveMuscleMap.value = show
+    }
+
     /** Kept separate from the device zone so travelling cannot change imported identities. */
     val hevyImportZone: String? get() = prefs.getString(KEY_HEVY_ZONE, null)
 
@@ -98,6 +107,7 @@ class SettingsStore internal constructor(context: Context) {
         private const val KEY_LIBRARY_VERSION = "library_seed_version"
         private const val KEY_AUTO_FOLDER = "auto_backup_folder"
         private const val KEY_AUTO_ERROR = "auto_backup_error"
+        private const val KEY_LIVE_MAP = "show_live_muscle_map"
 
         @Volatile
         private var instance: SettingsStore? = null
