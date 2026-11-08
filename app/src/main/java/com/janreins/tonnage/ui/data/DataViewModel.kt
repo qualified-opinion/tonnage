@@ -152,6 +152,7 @@ class DataViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             _import.value = try {
                 ImportState.Done(importer.import(ready.plan, ready.choices, settings.defaultRestSeconds.value))
+                    .also { AutoBackup.afterChange(getApplication()) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -252,6 +253,7 @@ class DataViewModel @JvmOverloads constructor(
             _backup.value = try {
                 backups.restore(contents)
                 settings.restoreBackupSettings(contents.defaultRestSeconds, contents.themeMode, contents.hevyImportZone)
+                AutoBackup.afterChange(getApplication())
                 BackupState.Restored(contents.workouts.size)
             } catch (e: WorkoutInProgressException) {
                 BackupState.Failed(e.message!!)

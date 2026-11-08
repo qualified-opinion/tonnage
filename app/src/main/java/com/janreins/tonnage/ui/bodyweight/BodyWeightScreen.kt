@@ -31,6 +31,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,12 @@ fun BodyWeightScreen(
 ) {
     var text by rememberSaveable { mutableStateOf("") }
     var epochDay by rememberSaveable { mutableStateOf(today.toEpochDay()) }
+    // Past midnight, a form still on the old "today" moves to the new one; a picked earlier day stays.
+    var shownToday by rememberSaveable { mutableStateOf(today.toEpochDay()) }
+    LaunchedEffect(today) {
+        if (epochDay == shownToday) epochDay = today.toEpochDay()
+        shownToday = today.toEpochDay()
+    }
     var picking by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<BodyWeight?>(null) }
     val date = LocalDate.ofEpochDay(epochDay)

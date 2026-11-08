@@ -3,6 +3,7 @@ package com.janreins.tonnage.ui.history
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.WorkoutSet
@@ -77,7 +78,10 @@ class HistoryViewModel @JvmOverloads constructor(
     fun finishEditing() {
         val id = _openId.value ?: return
         _editing.value = false
-        viewModelScope.launch { repository.tidyEdited(id) }
+        viewModelScope.launch {
+            repository.tidyEdited(id)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     fun delete() {
@@ -85,14 +89,20 @@ class HistoryViewModel @JvmOverloads constructor(
         val id = _openId.value ?: return
         _editing.value = false
         _openId.value = null
-        viewModelScope.launch { repository.discard(id) }
+        viewModelScope.launch {
+            repository.discard(id)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     // Editing a finished workout writes straight to the database, as logging does.
 
     fun rename(title: String) {
         val id = _openId.value ?: return
-        viewModelScope.launch { repository.rename(id, title) }
+        viewModelScope.launch {
+            repository.rename(id, title)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     fun addExercises(exerciseIds: List<String>) {

@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.RoutineSummary
 import com.janreins.tonnage.data.model.SetType
@@ -80,11 +81,17 @@ class RoutinesViewModel @JvmOverloads constructor(
     }
 
     fun duplicate(routineId: Long) {
-        viewModelScope.launch { repository.duplicate(routineId) }
+        viewModelScope.launch {
+            repository.duplicate(routineId)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     fun delete(routineId: Long) {
-        viewModelScope.launch { repository.delete(routineId) }
+        viewModelScope.launch {
+            repository.delete(routineId)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     fun close() {
@@ -98,6 +105,7 @@ class RoutinesViewModel @JvmOverloads constructor(
         viewModelScope.launch {
             try {
                 repository.save(draft.id, draft.name, draft.toEntities())
+                AutoBackup.afterChange(getApplication())
                 publish(null)
             } finally {
                 saving = false

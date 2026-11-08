@@ -3,6 +3,7 @@ package com.janreins.tonnage.ui.exercises
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.janreins.tonnage.data.backup.AutoBackup
 import com.janreins.tonnage.data.local.AppDatabase
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.TrackingType
@@ -54,10 +55,17 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
     fun clearFilters() = filter.update { ExerciseFilter(query = it.query) }
 
     fun addCustom(name: String, primaryMuscle: String, equipment: String, trackingType: TrackingType) {
-        viewModelScope.launch { repository.addCustom(name, primaryMuscle, equipment, trackingType) }
+        viewModelScope.launch {
+            repository.addCustom(name, primaryMuscle, equipment, trackingType)
+            AutoBackup.afterChange(getApplication())
+        }
     }
 
     fun deleteCustom(id: String, onResult: (deleted: Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.deleteCustom(id)) }
+        viewModelScope.launch {
+            val deleted = repository.deleteCustom(id)
+            if (deleted) AutoBackup.afterChange(getApplication())
+            onResult(deleted)
+        }
     }
 }

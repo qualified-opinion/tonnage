@@ -92,7 +92,6 @@ object WorkoutStats {
         )
     }
 
-    /** The records tracked for each way of logging an exercise. */
     /**
      * Ticked working sets per main muscle in the workout being logged, most worked first, for the
      * live body map. Counted like the Progress map: warm-ups and blank ticked sets are left out, an
@@ -109,6 +108,7 @@ object WorkoutStats {
             .map { (muscle, counts) -> MuscleSets(muscle, counts.sum()) }
             .sortedWith(compareByDescending<MuscleSets> { it.sets }.thenBy { it.muscle })
 
+    /** The records tracked for each way of logging an exercise. */
     fun recordKinds(type: TrackingType): List<PrKind> = when (type) {
         TrackingType.WEIGHT_REPS -> listOf(PrKind.HEAVIEST_WEIGHT, PrKind.BEST_ONE_REP_MAX)
         TrackingType.BODYWEIGHT_REPS -> listOf(PrKind.MOST_REPS)

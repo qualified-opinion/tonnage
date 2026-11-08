@@ -123,6 +123,7 @@ private fun TonnageApp() {
     val bodyWeightViewModel: BodyWeightViewModel = viewModel()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         progressViewModel.refresh()
+        bodyWeightViewModel.refresh()
         workoutViewModel.ensureService()
     }
     val settings = remember { SettingsStore.get(context) }
@@ -180,9 +181,10 @@ private fun TonnageApp() {
         showBodyWeight -> {
             BackHandler { showBodyWeight = false }
             val entries by bodyWeightViewModel.entries.collectAsStateWithLifecycle()
+            val today by bodyWeightViewModel.currentDay.collectAsStateWithLifecycle()
             BodyWeightScreen(
                 entries = entries,
-                today = bodyWeightViewModel.today(),
+                today = today,
                 onSave = bodyWeightViewModel::save,
                 onDelete = bodyWeightViewModel::delete,
                 onBack = { showBodyWeight = false },
@@ -283,7 +285,16 @@ private fun TonnageApp() {
                     MainTab.HISTORY -> {
                         val records by historyViewModel.records.collectAsStateWithLifecycle()
                         val workouts by historyViewModel.workouts.collectAsStateWithLifecycle()
-                        HistoryScreen(workouts, records, onOpen = { historyViewModel.open(it.id) }, modifier = modifier)
+                        val autoFolder by dataViewModel.autoBackupFolder.collectAsStateWithLifecycle()
+                        val autoError by dataViewModel.autoBackupError.collectAsStateWithLifecycle()
+                        HistoryScreen(
+                            workouts,
+                            records,
+                            onOpen = { historyViewModel.open(it.id) },
+                            modifier = modifier,
+                            backupError = autoError.takeIf { autoFolder != null },
+                            onOpenSettings = { tab = MainTab.MORE },
+                        )
                     }
                     MainTab.EXERCISES -> ExercisesScreen(
                         state = exercisesState,

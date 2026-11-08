@@ -12,12 +12,16 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.FileNotFoundException
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 /** The folder can't be reached: deleted, or the permission to write there was lost. */
 class FolderUnavailableException : Exception("the folder is no longer available. Pick it again.")
@@ -35,31 +39,66 @@ interface BackupFolder {
 }
 
 /**
- * After each saved workout, writes the same file as a manual backup to the folder chosen in
- * Settings as `tonnage-auto-YYYY-MM-DD.json`, keeping the newest [KEEP] of those files.
+ * After a workout is saved, and shortly after any other change to the data, writes the same file as
+ * a manual backup to the folder chosen in Settings as `tonnage-auto-YYYY-MM-DD.json`. It keeps the
+ * newest [KEEP] of those files, plus the newest one of each of the last [WEEKS] weeks.
  */
 object AutoBackup {
     const val KEEP = 7
-    private val ownName = Regex("""tonnage-auto-\d{4}-\d{2}-\d{2}\.json""")
+    const val WEEKS = 8
 
-    // Outlives the workout screen; finishing a workout never waits for it.
+    /** How long a change waits, so a burst of edits makes one backup instead of many. */
+    const val CHANGE_DELAY_MS = 3_000L
+
+    private val ownName = Regex("""tonnage-auto-(\d{4}-\d{2}-\d{2})\.json""")
+
+    // Outlives the screens; saving never waits for it.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, _ -> })
     private val lock = Mutex()
+    private var pending: Job? = null
 
     fun fileName(date: LocalDate): String = "tonnage-auto-$date.json"
 
-    /** Old automatic backups to delete; any other file in the folder is never touched. */
-    fun toDelete(names: List<String>): List<String> =
-        names.filter { ownName.matches(it) }.sortedDescending().drop(KEEP)
+    /**
+     * Old automatic backups to delete; any other file in the folder is never touched. The newest
+     * [KEEP] stay, and so does the newest file of each Monday-to-Sunday week among the last [WEEKS]
+     * weeks up to [today], so a mistake noticed a few weeks later can still be undone.
+     */
+    fun toDelete(names: List<String>, today: LocalDate): List<String> {
+        val own = names.filter { ownName.matches(it) }.sortedDescending()
+        val firstWeek = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks(WEEKS - 1L)
+        val weekly = own.mapNotNull { name ->
+            val date = runCatching { LocalDate.parse(ownName.matchEntire(name)!!.groupValues[1]) }.getOrNull()
+            date?.takeIf { !it.isBefore(firstWeek) && !it.isAfter(today) }?.let { name to it.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }
+        }
+            .distinctBy { it.second } // Names are newest first, so this keeps each week's newest.
+            .map { it.first }
+            .toSet()
+        return own.drop(KEEP).filter { it !in weekly }
+    }
 
-    /** Starts a backup if a folder is chosen. */
-    fun afterWorkoutSaved(context: Context) {
+    /** Backs up right away, if a folder is chosen. */
+    fun afterWorkoutSaved(context: Context) = schedule(context, 0)
+
+    /**
+     * Backs up a moment after a change outside a workout (body weight, routines, History edits,
+     * custom exercises, an import or a restore). A newer change restarts the wait.
+     */
+    fun afterChange(context: Context) = schedule(context, CHANGE_DELAY_MS)
+
+    private fun schedule(context: Context, delayMs: Long) {
         val app = context.applicationContext
         val settings = SettingsStore.get(app)
-        val folder = settings.autoBackupFolder.value ?: return
-        scope.launch {
-            run(settings, DocumentTreeFolder(app.contentResolver, folder.toUri()), LocalDate.now()) {
-                BackupRepository(AppDatabase.getInstance(app)).exportFile(settings)
+        if (settings.autoBackupFolder.value == null) return
+        synchronized(this) {
+            pending?.cancel()
+            pending = scope.launch {
+                delay(delayMs)
+                // Read again: the folder may have been changed or turned off while waiting.
+                val folder = settings.autoBackupFolder.value ?: return@launch
+                run(settings, DocumentTreeFolder(app.contentResolver, folder.toUri()), LocalDate.now()) {
+                    BackupRepository(AppDatabase.getInstance(app)).exportFile(settings)
+                }
             }
         }
     }
@@ -74,7 +113,7 @@ object AutoBackup {
         try {
             val (contents, bytes) = export()
             write(folder, fileName(today), bytes)
-            toDelete(folder.names()).forEach { runCatching { folder.delete(it) } }
+            toDelete(folder.names(), today).forEach { runCatching { folder.delete(it) } }
             settings.setLastBackupAt(contents.exportedAt)
             settings.setAutoBackupError(null)
         } catch (e: CancellationException) {
@@ -116,6 +155,8 @@ object AutoBackup {
         resolver.takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         settings.autoBackupFolder.value?.takeIf { it != treeUri.toString() }?.let { release(resolver, it) }
         settings.setAutoBackupFolder(treeUri.toString())
+        // Write the first file now, so a folder that can't be written to shows up straight away.
+        schedule(context, 0)
     }
 
     fun turnOff(context: Context) {
