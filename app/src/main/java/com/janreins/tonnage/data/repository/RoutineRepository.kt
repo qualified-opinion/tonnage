@@ -2,6 +2,7 @@ package com.janreins.tonnage.data.repository
 
 import com.janreins.tonnage.data.local.ExerciseDao
 import com.janreins.tonnage.data.local.RoutineDao
+import com.janreins.tonnage.data.local.WorkoutDao
 import com.janreins.tonnage.data.model.Routine
 import com.janreins.tonnage.data.model.RoutineContents
 import com.janreins.tonnage.data.model.RoutineExercise
@@ -9,21 +10,34 @@ import com.janreins.tonnage.data.model.RoutineSet
 import com.janreins.tonnage.data.model.RoutineSummary
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+import com.janreins.tonnage.domain.RoutineStats
 
 class RoutineRepository(
     private val routineDao: RoutineDao,
     private val exerciseDao: ExerciseDao,
     private val now: () -> Long = System::currentTimeMillis,
+    /** Gives the list when each routine was last done; without it those details are left out. */
+    private val workoutDao: WorkoutDao? = null,
 ) {
     fun observeSummaries(): Flow<List<RoutineSummary>> = combine(
         routineDao.observeRoutines(),
         routineDao.observeAllRoutineExercises(),
         exerciseDao.observeAll(),
-    ) { routines, routineExercises, exercises ->
-        val names = exercises.associate { it.id to it.name }
+        workoutDao?.observeRoutineWorkoutTimes() ?: flowOf(emptyList()),
+    ) { routines, routineExercises, exercises, times ->
+        val library = exercises.associateBy { it.id }
         val byRoutine = routineExercises.groupBy { it.routineId }
+        val stats = RoutineStats.byRoutine(times)
         routines.map { routine ->
-            RoutineSummary(routine, byRoutine[routine.id].orEmpty().map { names[it.exerciseId] ?: "Unknown exercise" })
+            val ids = byRoutine[routine.id].orEmpty().map { it.exerciseId }
+            RoutineSummary(
+                routine = routine,
+                exerciseNames = ids.map { library[it]?.name ?: "Unknown exercise" },
+                exercises = ids.mapNotNull { library[it] },
+                lastDoneAt = stats[routine.id]?.lastStartedAt,
+                typicalDurationMs = stats[routine.id]?.typicalDurationMs,
+            )
         }
     }
 

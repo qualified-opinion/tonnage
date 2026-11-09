@@ -140,3 +140,10 @@ data class RecentExercise(
     val exerciseId: String,
     val lastStartedAt: Long,
 )
+
+/** When a finished workout started from a routine began and ended, for the routine list. */
+data class RoutineWorkoutTime(
+    val routineId: Long,
+    val startedAt: Long,
+    val endedAt: Long,
+)

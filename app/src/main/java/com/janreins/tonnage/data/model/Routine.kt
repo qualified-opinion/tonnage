@@ -62,5 +62,14 @@ data class RoutineSet(
 /** Everything in one routine, exercises in order with their sets. */
 data class RoutineContents(val routine: Routine, val exercises: List<Pair<RoutineExercise, List<RoutineSet>>>)
 
-/** A routine with the names of its exercises, for the routine list. */
-data class RoutineSummary(val routine: Routine, val exerciseNames: List<String>)
+/** A routine with its exercises and when it was last done, for the routine list. */
+data class RoutineSummary(
+    val routine: Routine,
+    val exerciseNames: List<String>,
+    /** Library entries of its exercises, in order, for their pictures; missing ones are left out. */
+    val exercises: List<Exercise> = emptyList(),
+    /** Start of the last finished workout from this routine, or null if it hasn't been done. */
+    val lastDoneAt: Long? = null,
+    /** Typical length of its recent workouts (median of the last five), or null if never done. */
+    val typicalDurationMs: Long? = null,
+)

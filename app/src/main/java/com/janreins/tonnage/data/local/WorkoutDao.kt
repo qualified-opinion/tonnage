@@ -8,6 +8,7 @@ import com.janreins.tonnage.data.model.PastSet
 import com.janreins.tonnage.data.model.ProgressSet
 import com.janreins.tonnage.data.model.RecentExercise
 import com.janreins.tonnage.data.model.RecordSet
+import com.janreins.tonnage.data.model.RoutineWorkoutTime
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
@@ -312,4 +313,28 @@ abstract class WorkoutDao {
         """,
     )
     abstract fun observeRecentExercises(limit: Int): Flow<List<RecentExercise>>
+
+    /** Start and end of every finished workout that was started from a routine. */
+    @Query("SELECT routineId, startedAt, endedAt FROM workouts WHERE endedAt IS NOT NULL AND routineId IS NOT NULL")
+    abstract fun observeRoutineWorkoutTimes(): Flow<List<RoutineWorkoutTime>>
+
+    /** The latest finished workout started from the routine, other than [excludeWorkoutId]. */
+    @Query(
+        """
+        SELECT id FROM workouts
+        WHERE routineId = :routineId AND endedAt IS NOT NULL AND id != :excludeWorkoutId
+        ORDER BY startedAt DESC LIMIT 1
+        """,
+    )
+    abstract suspend fun latestRoutineWorkout(routineId: Long, excludeWorkoutId: Long): Long?
+
+    /** Completed working-set volume (weight × reps, warm-ups left out) of one workout. */
+    @Query(
+        """
+        SELECT COALESCE(SUM(ws.weightKg * ws.reps), 0) FROM workout_sets ws
+        INNER JOIN workout_exercises we ON ws.workoutExerciseId = we.id
+        WHERE we.workoutId = :workoutId AND ws.completed = 1 AND ws.type != 'WARMUP'
+        """,
+    )
+    abstract suspend fun workoutVolume(workoutId: Long): Double
 }
