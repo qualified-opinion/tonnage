@@ -132,7 +132,8 @@ fun ExerciseCard(
     val shape = RoundedCornerShape(16.dp)
     val cardModifier = modifier
         .fillMaxWidth()
-        .padding(horizontal = 12.dp, vertical = 6.dp)
+        // Outer and row padding add up to the 16 dp the set rows had before cards, so cells keep 48 dp on narrow phones.
+        .padding(horizontal = 8.dp, vertical = 6.dp)
         .clip(shape)
         .background(MaterialTheme.colorScheme.surface)
         .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), shape)
@@ -212,7 +213,7 @@ fun ExerciseCard(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
                     .clickable(onClickLabel = "Fill sets with suggestion") {
@@ -230,7 +231,7 @@ fun ExerciseCard(
             }
         }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -402,7 +403,7 @@ private fun SetRow(
         Modifier
             .fillMaxWidth()
             .background(rowColor)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
