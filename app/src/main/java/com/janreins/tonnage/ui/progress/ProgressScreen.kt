@@ -1,5 +1,7 @@
 package com.janreins.tonnage.ui.progress
 
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -77,6 +79,8 @@ fun ProgressScreen(
     modifier: Modifier = Modifier,
 ) {
     val bodyWeight by viewModel.bodyWeight.collectAsStateWithLifecycle()
+    var showAllExercises by rememberSaveable { mutableStateOf(false) }
+    var exerciseQuery by rememberSaveable { mutableStateOf("") }
     Scaffold(
         modifier = modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -101,13 +105,42 @@ fun ProgressScreen(
                 item { MilestonesCard(overview) }
                 if (bodyWeight.entries.isNotEmpty()) item { BodyWeightCard(bodyWeight.entries, bodyWeight.today) }
                 item { SectionTitle("Exercises") }
-                items(overview.exercises, key = { it.exerciseId }) { exercise ->
+                val total = overview.exercises.size
+                val longList = total > SHORT_EXERCISE_LIST
+                if (showAllExercises && longList) {
+                    item(key = "exercise-search") {
+                        OutlinedTextField(
+                            value = exerciseQuery,
+                            onValueChange = { exerciseQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search $total exercises") },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            singleLine = true,
+                        )
+                    }
+                }
+                val shown = when {
+                    !showAllExercises -> overview.exercises.take(SHORT_EXERCISE_LIST)
+                    exerciseQuery.isBlank() -> overview.exercises
+                    else -> overview.exercises.filter { it.name.contains(exerciseQuery.trim(), ignoreCase = true) }
+                }
+                items(shown, key = { it.exerciseId }) { exercise ->
                     ExerciseRow(exercise, onClick = { onOpenExercise(exercise.exerciseId) })
+                }
+                if (longList) {
+                    item(key = "exercise-toggle") {
+                        TextButton(onClick = { showAllExercises = !showAllExercises; exerciseQuery = "" }) {
+                            Text(if (showAllExercises) "Show fewer" else "Show all $total")
+                        }
+                    }
                 }
             }
         }
     }
 }
+
+/** How many of the most recently done exercises show before "Show all". */
+private const val SHORT_EXERCISE_LIST = 5
 
 @Composable
 private fun SectionTitle(text: String) {
