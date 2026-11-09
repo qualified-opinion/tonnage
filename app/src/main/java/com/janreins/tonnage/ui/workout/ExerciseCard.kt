@@ -1,5 +1,11 @@
 package com.janreins.tonnage.ui.workout
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.janreins.tonnage.data.model.ExerciseOptions
+import com.janreins.tonnage.ui.components.ExerciseThumbnail
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.selection.toggleable
@@ -9,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +25,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -36,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -105,6 +114,8 @@ fun ExerciseCard(
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
     showCheck: Boolean = true,
+    onOpenExercise: (() -> Unit)? = null,
+    foldWhenDone: Boolean = false,
 ) {
     val fields = fieldsFor(block.trackingType)
     val labels = WorkoutStats.setLabels(block.sets)
@@ -114,16 +125,62 @@ fun ExerciseCard(
     }
     // Tapping the hint pushes its numbers into the sets it fills, even a cell being typed in.
     var hintFill by remember { mutableStateOf<Pair<Int, Map<Long, WorkoutSet>>?>(null) }
-    Column(modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                block.name,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
+    val doneSets = block.sets.count { it.completed }
+    val allDone = block.sets.isNotEmpty() && doneSets == block.sets.size
+    // A finished exercise folds to one line in the workout being logged; tapping it opens it again.
+    var unfolded by rememberSaveable(block.workoutExercise.id) { mutableStateOf(false) }
+    val shape = RoundedCornerShape(16.dp)
+    val cardModifier = modifier
+        .fillMaxWidth()
+        // Outer and row padding add up to the 16 dp the set rows had before cards, so cells keep 48 dp on narrow phones.
+        .padding(horizontal = 8.dp, vertical = 6.dp)
+        .clip(shape)
+        .background(MaterialTheme.colorScheme.surface)
+        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f), shape)
+    if (foldWhenDone && allDone && !unfolded) {
+        FoldedExercise(block, onExpand = { unfolded = true }, modifier = cardModifier)
+        return
+    }
+    Column(cardModifier.padding(top = 8.dp, bottom = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .then(
+                        if (onOpenExercise != null) {
+                            Modifier.clickable(onClickLabel = "Open exercise details", onClick = onOpenExercise)
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ExerciseThumbnail(block.exercise)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        block.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    exerciseMeta(block)?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            if (showCheck && block.sets.isNotEmpty()) {
+                SetCounter(doneSets, block.sets.size)
+            }
             RestChip(block.workoutExercise.restSeconds, onRestChange)
             var menu by remember { mutableStateOf(false) }
             Box {
@@ -153,22 +210,28 @@ fun ExerciseCard(
             }
         }
         if (hint != null) {
-            Text(
-                hint.text,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier
+            Row(
+                Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f))
                     .clickable(onClickLabel = "Fill sets with suggestion") {
                         val targets = Progression.fillTargets(block).associate { it.id to Progression.applied(it, hint) }
                         hintFill = ((hintFill?.first ?: 0) + 1) to targets
                         onUseHint(hint)
                     }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            )
+                    .heightIn(min = 48.dp)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Icons.Outlined.Lightbulb, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
+                Text(hint.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+            }
         }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -203,7 +266,6 @@ fun ExerciseCard(
             Spacer(Modifier.width(4.dp))
             Text("Add set")
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
     }
     if (confirmRemove) {
         val sets = if (block.sets.size == 1) "its set" else "its ${block.sets.size} sets"
@@ -218,6 +280,64 @@ fun ExerciseCard(
             },
             dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Keep") } },
         )
+    }
+}
+
+/** "Chest · Dumbbell", from the library entry. */
+private fun exerciseMeta(block: ExerciseBlock): String? {
+    val exercise = block.exercise ?: return null
+    val muscle = exercise.primaryMuscleList.firstOrNull()?.let { ExerciseOptions.display(it) }
+    val equipment = ExerciseOptions.display(exercise.equipment).takeIf { it.isNotBlank() }
+    return listOfNotNull(muscle, equipment).joinToString(" · ").ifEmpty { null }
+}
+
+@Composable
+private fun SetCounter(done: Int, total: Int) {
+    val finished = done == total
+    Text(
+        "$done / $total",
+        style = MaterialTheme.typography.labelMedium,
+        color = if (finished) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(start = 4.dp)
+            .background(
+                if (finished) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(10.dp),
+            )
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .semantics { contentDescription = "$done of $total sets done" },
+    )
+}
+
+/** A finished exercise as one line: tick, picture, name and what was done. Tap to open it again. */
+@Composable
+private fun FoldedExercise(block: ExerciseBlock, onExpand: () -> Unit, modifier: Modifier) {
+    val sets = block.sets.size
+    val volume = block.sets.filter { it.type != SetType.WARMUP }.sumOf { WorkoutStats.setVolume(it) }
+    val summary = buildList {
+        add(if (sets == 1) "1 set" else "$sets sets")
+        if (volume > 0) add(Format.volume(volume))
+    }.joinToString(" · ")
+    Row(
+        modifier
+            .clickable(onClickLabel = "Show sets", onClick = onExpand)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(
+            Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+        }
+        ExerciseThumbnail(block.exercise, size = 32.dp)
+        Column(Modifier.weight(1f)) {
+            Text(block.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -283,7 +403,7 @@ private fun SetRow(
         Modifier
             .fillMaxWidth()
             .background(rowColor)
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -15,6 +15,7 @@ import com.janreins.tonnage.data.settings.SettingsStore
 import com.janreins.tonnage.domain.ExerciseBlock
 import com.janreins.tonnage.domain.PersonalRecord
 import com.janreins.tonnage.domain.ProgressionHint
+import com.janreins.tonnage.domain.MuscleSets
 import com.janreins.tonnage.domain.SessionSummary
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.service.WorkoutService
@@ -33,8 +34,16 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Shown before saving: totals for the session and any records it set. */
-data class FinishPreview(val summary: SessionSummary, val records: List<PersonalRecord>)
+/** Shown before saving: totals for the session, any records it set and the muscles it worked. */
+data class FinishPreview(
+    val summary: SessionSummary,
+    val records: List<PersonalRecord>,
+    val title: String = "",
+    val startedAt: Long = 0L,
+    val muscles: List<MuscleSets> = emptyList(),
+    /** Volume of the last workout from the same routine, to compare with; null without one. */
+    val lastRoutineVolumeKg: Double? = null,
+)
 
 class WorkoutViewModel @JvmOverloads constructor(
     application: Application,
@@ -263,6 +272,10 @@ class WorkoutViewModel @JvmOverloads constructor(
             _finishPreview.value = FinishPreview(
                 summary = WorkoutStats.summarize(current.blocks, current.workout.startedAt, System.currentTimeMillis()),
                 records = repository.recordsFor(current),
+                title = current.workout.title,
+                startedAt = current.workout.startedAt,
+                muscles = WorkoutStats.muscleSets(current.blocks),
+                lastRoutineVolumeKg = repository.lastRoutineVolume(current),
             )
         }
     }

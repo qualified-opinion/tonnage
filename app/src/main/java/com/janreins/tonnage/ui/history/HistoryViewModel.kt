@@ -35,6 +35,10 @@ class HistoryViewModel @JvmOverloads constructor(
     val workouts: StateFlow<List<WorkoutSummary>?> = repository.observeHistory()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Exercise names per finished workout, shown on the history cards and used by its search. */
+    val exerciseNames: StateFlow<Map<Long, List<String>>> = repository.observeHistoryExerciseNames()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
     private val _editing = MutableStateFlow(false)
     val editing: StateFlow<Boolean> = _editing.asStateFlow()
 

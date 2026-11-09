@@ -1,5 +1,25 @@
 package com.janreins.tonnage.ui.workout
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.janreins.tonnage.data.model.ExerciseOptions
+import com.janreins.tonnage.domain.Progress
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.platform.LocalLocale
+import com.janreins.tonnage.domain.RoutineStats
+import com.janreins.tonnage.ui.components.ExerciseThumbnail
+import java.text.SimpleDateFormat
+import java.util.Date
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -93,11 +113,12 @@ fun WorkoutTab(
     onAddExercise: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenExercise: (String) -> Unit = {},
 ) {
     if (active == null) {
         StartWorkout(routines, onStartEmpty = viewModel::startEmptyWorkout, actions = routineActions, modifier = modifier)
     } else {
-        ActiveWorkoutScreen(active, previous, rest, viewModel, onAddExercise, modifier)
+        ActiveWorkoutScreen(active, previous, rest, viewModel, onAddExercise, onOpenExercise, modifier)
     }
     if (finishPreview != null) {
         FinishDialog(
@@ -131,13 +152,19 @@ private fun StartWorkout(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                Button(
-                    onClick = onStartEmpty,
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Start empty workout")
+                // With routines to start from, the empty workout steps back so a routine's Start leads.
+                if (routines.isEmpty()) {
+                    Button(onClick = onStartEmpty, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Start empty workout")
+                    }
+                } else {
+                    OutlinedButton(onClick = onStartEmpty, modifier = Modifier.fillMaxWidth().height(48.dp)) {
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Start empty workout")
+                    }
                 }
             }
             item {
@@ -167,9 +194,11 @@ private fun StartWorkout(
                     }
                 }
             }
+            val upNext = RoutineStats.upNext(routines)
             items(routines, key = { it.routine.id }) { summary ->
                 RoutineCard(
                     summary = summary,
+                    upNext = summary.routine.id == upNext,
                     onStart = { actions.onStart(summary.routine.id) },
                     onEdit = { actions.onEdit(summary.routine.id) },
                     onDuplicate = { actions.onDuplicate(summary.routine.id) },
@@ -192,16 +221,36 @@ private fun StartWorkout(
     }
 }
 
+/** "Last done Tue 3 Nov · 5 exercises · about 60 min", or "Not done yet · 5 exercises". */
+@Composable
+private fun routineDetails(summary: RoutineSummary): String {
+    val locale = LocalLocale.current.platformLocale
+    val count = summary.exerciseNames.size
+    val parts = buildList {
+        add(
+            summary.lastDoneAt?.let { "Last done " + SimpleDateFormat("EEE d MMM", locale).format(Date(it)) } ?: "Not done yet",
+        )
+        add(if (count == 1) "1 exercise" else "$count exercises")
+        summary.typicalDurationMs?.takeIf { it >= 60_000 }?.let { add("about ${Format.roughDuration(it)}") }
+    }
+    return parts.joinToString(" · ")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RoutineCard(
     summary: RoutineSummary,
+    upNext: Boolean,
     onStart: () -> Unit,
     onEdit: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    OutlinedCard(onClick = onEdit, modifier = Modifier.fillMaxWidth()) {
+    OutlinedCard(
+        onClick = onEdit,
+        modifier = Modifier.fillMaxWidth(),
+        border = if (upNext) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else CardDefaults.outlinedCardBorder(),
+    ) {
         Column(Modifier.padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -209,8 +258,20 @@ private fun RoutineCard(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                if (upNext) {
+                    Text(
+                        "Up next",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(10.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 var menu by remember { mutableStateOf(false) }
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Routine options") }
@@ -225,20 +286,50 @@ private fun RoutineCard(
                 }
             }
             Text(
-                summary.exerciseNames.joinToString(", ").ifEmpty { "No exercises" },
-                style = MaterialTheme.typography.bodyMedium,
+                routineDetails(summary),
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(end = 12.dp),
             )
-            Spacer(Modifier.height(8.dp))
-            FilledTonalButton(onClick = onStart, modifier = Modifier.padding(end = 12.dp).fillMaxWidth()) {
-                Text("Start routine")
+            Text(
+                summary.exerciseNames.joinToString(", ").ifEmpty { "No exercises" },
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp, end = 12.dp),
+            )
+            if (summary.exercises.isNotEmpty()) {
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val shown = summary.exercises.take(ROUTINE_PICTURES)
+                    shown.forEach { ExerciseThumbnail(it, size = 36.dp) }
+                    val more = summary.exercises.size - shown.size
+                    if (more > 0) {
+                        Box(
+                            Modifier.size(36.dp).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("+$more", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            if (upNext) {
+                Button(onClick = onStart, modifier = Modifier.padding(end = 12.dp).fillMaxWidth()) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Start ${summary.routine.name}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                FilledTonalButton(onClick = onStart, modifier = Modifier.padding(end = 12.dp).fillMaxWidth()) {
+                    Text("Start routine")
+                }
             }
         }
     }
 }
+
+private const val ROUTINE_PICTURES = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -248,6 +339,7 @@ private fun ActiveWorkoutScreen(
     rest: RestTimer.State?,
     viewModel: WorkoutViewModel,
     onAddExercise: () -> Unit,
+    onOpenExercise: (String) -> Unit,
     modifier: Modifier,
 ) {
     var renaming by remember { mutableStateOf(false) }
@@ -330,6 +422,8 @@ private fun ActiveWorkoutScreen(
                     onUseHint = { viewModel.useHint(block, it) },
                     onMoveUp = if (index > 0) ({ viewModel.moveExercise(block, -1) }) else null,
                     onMoveDown = if (index < active.blocks.lastIndex) ({ viewModel.moveExercise(block, 1) }) else null,
+                    onOpenExercise = { onOpenExercise(block.workoutExercise.exerciseId) },
+                    foldWhenDone = true,
                 )
             }
             item {
@@ -485,37 +579,126 @@ private fun FinishDialog(
         )
         return
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Finish workout?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Duration: ${Format.duration(summary.durationMs)}")
-                Text("Exercises: ${summary.exerciseCount} · Sets: ${summary.completedSets}")
-                Text("Volume: ${Format.volume(summary.volumeKg)}")
-                if (filled > 0) {
-                    val verb = if (filled == 1) "isn't" else "aren't"
-                    Text("$filledSets $verb ticked and won't be saved unless you tick them.", color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(onClick = onCompleteFilledAndSave) { Text("Tick them and save") }
+    FinishScreen(preview, filledSets, onSave, onCompleteFilledAndSave, onDismiss)
+}
+
+/** The summary before saving, as a full screen: the numbers in tiles, records, muscles and any warnings. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FinishScreen(
+    preview: FinishPreview,
+    filledSets: String,
+    onSave: () -> Unit,
+    onCompleteFilledAndSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val summary = preview.summary
+    val filled = summary.filledIncompleteSets
+    val locale = LocalLocale.current.platformLocale
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                Column(
+                    Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = PrGold, modifier = Modifier.size(48.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Finish workout?", style = MaterialTheme.typography.headlineSmall)
+                        if (preview.startedAt > 0) {
+                            val started = SimpleDateFormat("EEE d MMM · HH:mm", locale).format(Date(preview.startedAt))
+                            Text(
+                                listOf(preview.title, started).filter { it.isNotBlank() }.joinToString(" · "),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile(Format.duration(summary.durationMs), "duration", Modifier.weight(1f))
+                        StatTile(Format.volume(summary.volumeKg), volumeNote(summary.volumeKg, preview.lastRoutineVolumeKg), Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatTile(summary.completedSets.toString(), if (summary.completedSets == 1) "set" else "sets", Modifier.weight(1f))
+                        StatTile(summary.exerciseCount.toString(), if (summary.exerciseCount == 1) "exercise" else "exercises", Modifier.weight(1f))
+                    }
+                    if (preview.records.isNotEmpty()) {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .background(PrGold.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+                                .border(1.dp, PrGold.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            val count = preview.records.size
+                            Text(if (count == 1) "1 new record" else "$count new records", style = MaterialTheme.typography.titleSmall)
+                            preview.records.forEach { RecordLine(it) }
+                        }
+                    }
+                    if (preview.muscles.isNotEmpty()) {
+                        Text("Muscles worked", style = MaterialTheme.typography.titleSmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            preview.muscles.forEach { muscle ->
+                                val name = if (muscle.muscle == Progress.OTHER_MUSCLE) "Other" else ExerciseOptions.display(muscle.muscle)
+                                Text(
+                                    "$name · ${muscle.sets}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier
+                                        .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(10.dp))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                                )
+                            }
+                        }
+                    }
+                    if (filled > 0) {
+                        val verb = if (filled == 1) "isn't" else "aren't"
+                        Text("$filledSets $verb ticked and won't be saved unless you tick them.", color = MaterialTheme.colorScheme.error)
+                        OutlinedButton(onClick = onCompleteFilledAndSave) { Text("Tick them and save") }
+                    }
+                    if (summary.plannedIncompleteSets > 0) {
+                        Text("${summary.plannedIncompleteSets} untouched planned sets won't be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    val blank = summary.incompleteSets - filled - summary.plannedIncompleteSets
+                    if (blank > 0) {
+                        val sets = if (blank == 1) "1 empty set" else "$blank empty sets"
+                        Text("$sets will be removed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
-                if (summary.plannedIncompleteSets > 0) {
-                    Text("${summary.plannedIncompleteSets} untouched planned sets won't be saved.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                val blank = summary.incompleteSets - filled - summary.plannedIncompleteSets
-                if (blank > 0) {
-                    val sets = if (blank == 1) "1 empty set" else "$blank empty sets"
-                    Text("$sets will be removed.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (preview.records.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text("New records", style = MaterialTheme.typography.titleSmall)
-                    preview.records.forEach { RecordLine(it) }
+                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f).height(52.dp)) { Text("Keep going") }
+                    Button(onClick = onSave, modifier = Modifier.weight(1f).height(52.dp)) { Text("Save workout") }
                 }
             }
-        },
-        confirmButton = { Button(onClick = onSave) { Text("Save workout") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Keep going") } },
-    )
+        }
+    }
+}
+
+/** "volume", or "volume · 6% more than last time" when the routine was done before. */
+private fun volumeNote(volumeKg: Double, lastKg: Double?): String {
+    if (lastKg == null || lastKg <= 0.0 || volumeKg <= 0.0) return "volume"
+    val change = Math.round((volumeKg - lastKg) / lastKg * 100).toInt()
+    return when {
+        change > 0 -> "volume · $change% more than last time"
+        change < 0 -> "volume · ${-change}% less than last time"
+        else -> "volume · same as last time"
+    }
+}
+
+@Composable
+private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+    ) {
+        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }
 
 @Composable

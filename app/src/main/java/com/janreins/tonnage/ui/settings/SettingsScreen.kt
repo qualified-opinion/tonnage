@@ -52,7 +52,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** What the More tab's data section can do. */
+/** What the Settings tab's data section can do. */
 class DataActions(
     val onImportHevy: (Uri) -> Unit,
     val onSaveBackup: (Uri) -> Unit,
@@ -97,6 +97,7 @@ fun SettingsScreen(
         topBar = { TopAppBar(title = { Text("Settings") }) },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            SectionHeading("Training")
             var open by remember { mutableStateOf(false) }
             Box {
                 ListItem(
@@ -115,24 +116,6 @@ fun SettingsScreen(
                     }
                 }
             }
-            var themeOpen by remember { mutableStateOf(false) }
-            Box {
-                ListItem(
-                    modifier = Modifier.clickable { themeOpen = true },
-                    leadingContent = { Icon(Icons.Filled.Contrast, contentDescription = null) },
-                    headlineContent = { Text("Theme") },
-                    supportingContent = { Text("Light, dark, or the same as your phone") },
-                    trailingContent = { Text(themeMode.label, color = MaterialTheme.colorScheme.primary) },
-                )
-                DropdownMenu(expanded = themeOpen, onDismissRequest = { themeOpen = false }) {
-                    ThemeMode.entries.forEach { mode ->
-                        DropdownMenuItem(
-                            text = { Text(mode.label) },
-                            onClick = { themeOpen = false; onThemeModeChange(mode) },
-                        )
-                    }
-                }
-            }
             ListItem(
                 modifier = Modifier.clickable(onClick = onOpenBodyWeight),
                 leadingContent = { Icon(Icons.Filled.MonitorWeight, contentDescription = null) },
@@ -140,12 +123,10 @@ fun SettingsScreen(
                 supportingContent = { Text("Log your weight; the Progress tab charts it") },
             )
             HorizontalDivider()
-            Text(
-                "Your data",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-            )
+            SectionHeading("Appearance")
+            ThemeRow(themeMode, onThemeModeChange)
+            HorizontalDivider()
+            SectionHeading("Your data")
             ListItem(
                 modifier = Modifier.clickable { importFile.launch(arrayOf("text/*", "application/csv", "application/octet-stream")) },
                 leadingContent = { Icon(Icons.Filled.Download, contentDescription = null) },
@@ -205,12 +186,7 @@ fun SettingsScreen(
                 supportingContent = { Text("Replaces everything in Tonnage with the backup's contents") },
             )
             HorizontalDivider()
-            Text(
-                "Credits",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
-            )
+            SectionHeading("Credits")
             ListItem(
                 leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
                 headlineContent = { Text("Body map artwork") },
@@ -225,6 +201,38 @@ fun SettingsScreen(
     }
 
     BackupDialog(backupState, data)
+}
+
+@Composable
+private fun SectionHeading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun ThemeRow(themeMode: ThemeMode, onThemeModeChange: (ThemeMode) -> Unit) {
+    var themeOpen by remember { mutableStateOf(false) }
+    Box {
+        ListItem(
+            modifier = Modifier.clickable { themeOpen = true },
+            leadingContent = { Icon(Icons.Filled.Contrast, contentDescription = null) },
+            headlineContent = { Text("Theme") },
+            supportingContent = { Text("Light, dark, or the same as your phone") },
+            trailingContent = { Text(themeMode.label, color = MaterialTheme.colorScheme.primary) },
+        )
+        DropdownMenu(expanded = themeOpen, onDismissRequest = { themeOpen = false }) {
+            ThemeMode.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(mode.label) },
+                    onClick = { themeOpen = false; onThemeModeChange(mode) },
+                )
+            }
+        }
+    }
 }
 
 @Composable

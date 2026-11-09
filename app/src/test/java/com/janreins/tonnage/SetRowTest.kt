@@ -62,6 +62,7 @@ class SetRowTest {
         type: TrackingType = TrackingType.WEIGHT_REPS,
         previous: List<WorkoutSet>? = null,
         showCheck: Boolean = true,
+        foldWhenDone: Boolean = false,
         onToggle: (WorkoutSet) -> WorkoutSet = { it },
     ) {
         val sets = mutableStateOf(initial)
@@ -77,7 +78,7 @@ class SetRowTest {
                     ExerciseCard(
                         block = ExerciseBlock(WorkoutExercise(id = 1, workoutId = 1, exerciseId = "bench", position = 0, restSeconds = 90), exercise.copy(trackingType = type), sets.value),
                         actions = actions, onAddSet = {}, onRestChange = {}, onRemove = {},
-                        previous = previous, showCheck = showCheck,
+                        previous = previous, showCheck = showCheck, foldWhenDone = foldWhenDone,
                     )
                 }
             }
@@ -95,6 +96,17 @@ class SetRowTest {
         compose.onNodeWithContentDescription("Set 1 done").performClick()
         weight.assertTextEquals("60")
         compose.onAllNodes(hasSetTextAction())[1].assertTextEquals("8")
+    }
+
+    @Test fun finishedExerciseFoldsToOneLineAndOpensAgainOnTap() {
+        val done = WorkoutSet(id = 1, workoutExerciseId = 1, position = 0, weightKg = 60.0, reps = 8, completed = true)
+        showSets(listOf(done, done.copy(id = 2, position = 1, completed = false)), foldWhenDone = true) { it.copy(completed = !it.completed) }
+        compose.onNodeWithContentDescription("1 of 2 sets done").assertExists()
+        compose.onNodeWithContentDescription("Set 2 done").performClick()
+        // Every set is ticked: only the one-line summary is left.
+        compose.onNodeWithContentDescription("Set 1 done").assertDoesNotExist()
+        compose.onNodeWithText("2 sets · 960 kg").assertExists().performClick()
+        compose.onNodeWithContentDescription("Set 2 done").assertIsOn()
     }
 
     @Test fun deletingTheFocusedSetDoesNotMoveFocusIntoTheNextSet() {

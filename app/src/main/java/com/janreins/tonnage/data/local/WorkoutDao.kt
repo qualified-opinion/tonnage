@@ -6,10 +6,13 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.janreins.tonnage.data.model.PastSet
 import com.janreins.tonnage.data.model.ProgressSet
+import com.janreins.tonnage.data.model.RecentExercise
 import com.janreins.tonnage.data.model.RecordSet
+import com.janreins.tonnage.data.model.RoutineWorkoutTime
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
+import com.janreins.tonnage.data.model.WorkoutExerciseName
 import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.model.WorkoutSummary
 import kotlinx.coroutines.flow.Flow
@@ -297,4 +300,55 @@ abstract class WorkoutDao {
         """,
     )
     abstract suspend fun pastWorkingSets(exerciseIds: List<String>, excludeWorkoutId: Long): List<PastSet>
+
+    /** Exercises from finished workouts, most recently done first. */
+    @Query(
+        """
+        SELECT we.exerciseId AS exerciseId, MAX(w.startedAt) AS lastStartedAt
+        FROM workout_exercises we
+        INNER JOIN workouts w ON w.id = we.workoutId
+        WHERE w.endedAt IS NOT NULL
+        GROUP BY we.exerciseId
+        ORDER BY lastStartedAt DESC
+        LIMIT :limit
+        """,
+    )
+    abstract fun observeRecentExercises(limit: Int): Flow<List<RecentExercise>>
+
+    /** Start and end of every finished workout that was started from a routine. */
+    @Query("SELECT routineId, startedAt, endedAt FROM workouts WHERE endedAt IS NOT NULL AND routineId IS NOT NULL")
+    abstract fun observeRoutineWorkoutTimes(): Flow<List<RoutineWorkoutTime>>
+
+    /** The latest finished workout started from the routine, other than [excludeWorkoutId]. */
+    @Query(
+        """
+        SELECT id FROM workouts
+        WHERE routineId = :routineId AND endedAt IS NOT NULL AND id != :excludeWorkoutId
+        ORDER BY startedAt DESC LIMIT 1
+        """,
+    )
+    abstract suspend fun latestRoutineWorkout(routineId: Long, excludeWorkoutId: Long): Long?
+
+    /** Completed working-set volume (weight × reps, warm-ups left out) of one workout. */
+    @Query(
+        """
+        SELECT COALESCE(SUM(ws.weightKg * ws.reps), 0) FROM workout_sets ws
+        INNER JOIN workout_exercises we ON ws.workoutExerciseId = we.id
+        WHERE we.workoutId = :workoutId AND ws.completed = 1 AND ws.type != 'WARMUP'
+        """,
+    )
+    abstract suspend fun workoutVolume(workoutId: Long): Double
+
+    /** Exercise names of every finished workout, in each workout's order. */
+    @Query(
+        """
+        SELECT we.workoutId AS workoutId, e.name AS name
+        FROM workout_exercises we
+        INNER JOIN workouts w ON w.id = we.workoutId
+        LEFT JOIN exercises e ON e.id = we.exerciseId
+        WHERE w.endedAt IS NOT NULL
+        ORDER BY we.workoutId, we.position
+        """,
+    )
+    abstract fun observeFinishedExerciseNames(): Flow<List<WorkoutExerciseName>>
 }

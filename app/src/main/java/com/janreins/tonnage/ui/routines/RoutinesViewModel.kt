@@ -31,7 +31,7 @@ class RoutinesViewModel @JvmOverloads constructor(
     private val savedState: SavedStateHandle,
     private val db: AppDatabase = AppDatabase.getInstance(application),
 ) : AndroidViewModel(application) {
-    private val repository = RoutineRepository(db.routineDao(), db.exerciseDao())
+    private val repository = RoutineRepository(db.routineDao(), db.exerciseDao(), workoutDao = db.workoutDao())
     private val settings = SettingsStore.get(application)
 
     val routines: StateFlow<List<RoutineSummary>> = repository.observeSummaries()

@@ -20,3 +20,9 @@ val SurfaceVariantLight = Color(0xFFECEDEF)
 val OutlineLight = Color(0xFFC6C8CD)
 
 val PrGold = Color(0xFFF5B83D)
+
+// A warm apricot for suggestions and drop sets, so they stand apart from the green and the PR gold.
+val Apricot = Color(0xFFE9A15B)
+val ApricotDeep = Color(0xFF8A4F12)
+val ApricotContainerDark = Color(0xFF4A2D10)
+val ApricotContainerLight = Color(0xFFFFDDBE)

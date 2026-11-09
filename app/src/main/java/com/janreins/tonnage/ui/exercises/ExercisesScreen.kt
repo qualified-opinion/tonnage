@@ -48,6 +48,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.janreins.tonnage.data.model.Exercise
 import com.janreins.tonnage.data.model.ExerciseOptions
+import com.janreins.tonnage.ui.components.ExerciseThumbnail
+import androidx.compose.ui.platform.LocalLocale
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /** Turns the library into a multi-select list for adding exercises to a workout. */
 class PickerMode(
@@ -144,6 +150,19 @@ fun ExercisesScreen(
                     )
                 }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
+                    if (state.recent.isNotEmpty()) {
+                        item(key = "recent-title") { ListHeading("Used recently") }
+                        items(state.recent, key = { (exercise, _) -> "recent-" + exercise.id }) { (exercise, lastAt) ->
+                            ExerciseRow(
+                                exercise,
+                                selected = picker?.selected?.contains(exercise.id),
+                                onClick = { if (picker != null) picker.onToggle(exercise) else onExerciseClick(exercise) },
+                                lastDone = lastAt,
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        }
+                        item(key = "all-title") { ListHeading("All exercises") }
+                    }
                     items(state.exercises, key = { it.id }) { exercise ->
                         ExerciseRow(
                             exercise,
@@ -159,13 +178,39 @@ fun ExercisesScreen(
 }
 
 @Composable
-private fun ExerciseRow(exercise: Exercise, selected: Boolean?, onClick: () -> Unit) {
+private fun ListHeading(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+    )
+}
+
+/** "last today", "last Tue" within a week, otherwise "last 3 Oct". */
+@Composable
+private fun lastDoneText(at: Long): String {
+    val locale = LocalLocale.current.platformLocale
+    val zone = ZoneId.systemDefault()
+    val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+    val today = LocalDate.now(zone)
+    return "last " + when {
+        day == today -> "today"
+        day.isAfter(today.minusDays(7)) -> day.format(DateTimeFormatter.ofPattern("EEE", locale))
+        else -> day.format(DateTimeFormatter.ofPattern("d MMM", locale))
+    }
+}
+
+@Composable
+private fun ExerciseRow(exercise: Exercise, selected: Boolean?, onClick: () -> Unit, lastDone: Long? = null) {
+    val last = lastDone?.let { lastDoneText(it) }
     ListItem(
         modifier = Modifier.clickable(onClick = onClick),
+        leadingContent = { ExerciseThumbnail(exercise) },
         headlineContent = { Text(exercise.name) },
         supportingContent = {
             val muscles = exercise.primaryMuscleList.joinToString(", ") { ExerciseOptions.display(it) }
-            val parts = listOf(muscles, ExerciseOptions.display(exercise.equipment)).filter { it.isNotBlank() }
+            val parts = listOfNotNull(muscles, ExerciseOptions.display(exercise.equipment), last).filter { it.isNotBlank() }
             Text(parts.joinToString(" · "), color = MaterialTheme.colorScheme.onSurfaceVariant)
         },
         trailingContent = if (selected != null) {

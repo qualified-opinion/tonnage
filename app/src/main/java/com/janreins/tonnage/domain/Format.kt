@@ -77,6 +77,18 @@ object Format {
         }
     }
 
+    /** A length to the nearest 5 minutes, at least 5: "45 min", "1 h", "1 h 15 min". */
+    fun roughDuration(ms: Long): String {
+        val minutes = (Math.round(ms.coerceAtLeast(0) / 300_000.0) * 5).toInt().coerceAtLeast(5)
+        val hours = minutes / 60
+        val rest = minutes % 60
+        return when {
+            hours == 0 -> "$minutes min"
+            rest == 0 -> "$hours h"
+            else -> "$hours h $rest min"
+        }
+    }
+
     fun restSeconds(seconds: Int): String = if (seconds <= 0) "Off" else duration(seconds * 1000L)
 
     /** Short form for the "previous" column: "60kg × 8", "12 reps", "2km 10:00", or "" when empty. */

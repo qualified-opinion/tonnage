@@ -75,6 +75,12 @@ class WorkoutRepository(
         }
     }
 
+    /** Exercise names per finished workout, in order, for the history list and its search. */
+    fun observeHistoryExerciseNames(): Flow<Map<Long, List<String>>> =
+        workoutDao.observeFinishedExerciseNames().map { rows ->
+            rows.groupBy({ it.workoutId }, { it.name ?: "Unknown exercise" })
+        }
+
     fun observeHistory(): Flow<List<WorkoutSummary>> = workoutDao.observeFinishedSummaries()
 
     suspend fun getActive(): Workout? = workoutDao.getActive()
@@ -230,6 +236,13 @@ class WorkoutRepository(
                 }
         }
         ticked
+    }
+
+    /** Volume of the last finished workout from the same routine, or null without one. */
+    suspend fun lastRoutineVolume(active: ActiveWorkout): Double? {
+        val routineId = active.workout.routineId ?: return null
+        val last = workoutDao.latestRoutineWorkout(routineId, active.workout.id) ?: return null
+        return workoutDao.workoutVolume(last)
     }
 
     suspend fun recordsFor(active: ActiveWorkout): List<PersonalRecord> {

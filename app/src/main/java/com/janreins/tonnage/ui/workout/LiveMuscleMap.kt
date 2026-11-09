@@ -59,7 +59,7 @@ internal fun LiveMuscleMap(blocks: List<ExerciseBlock>, expanded: Boolean, onExp
         muscles.joinToString(" · ") { "${muscleName(it.muscle)} ${it.sets}" }
     }
 
-    OutlinedCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    OutlinedCard(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
         Row(
             Modifier
                 .fillMaxWidth()
