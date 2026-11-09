@@ -93,11 +93,12 @@ fun WorkoutTab(
     onAddExercise: () -> Unit,
     onSaved: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenExercise: (String) -> Unit = {},
 ) {
     if (active == null) {
         StartWorkout(routines, onStartEmpty = viewModel::startEmptyWorkout, actions = routineActions, modifier = modifier)
     } else {
-        ActiveWorkoutScreen(active, previous, rest, viewModel, onAddExercise, modifier)
+        ActiveWorkoutScreen(active, previous, rest, viewModel, onAddExercise, onOpenExercise, modifier)
     }
     if (finishPreview != null) {
         FinishDialog(
@@ -248,6 +249,7 @@ private fun ActiveWorkoutScreen(
     rest: RestTimer.State?,
     viewModel: WorkoutViewModel,
     onAddExercise: () -> Unit,
+    onOpenExercise: (String) -> Unit,
     modifier: Modifier,
 ) {
     var renaming by remember { mutableStateOf(false) }
@@ -330,6 +332,8 @@ private fun ActiveWorkoutScreen(
                     onUseHint = { viewModel.useHint(block, it) },
                     onMoveUp = if (index > 0) ({ viewModel.moveExercise(block, -1) }) else null,
                     onMoveDown = if (index < active.blocks.lastIndex) ({ viewModel.moveExercise(block, 1) }) else null,
+                    onOpenExercise = { onOpenExercise(block.workoutExercise.exerciseId) },
+                    foldWhenDone = true,
                 )
             }
             item {

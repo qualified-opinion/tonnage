@@ -290,6 +290,7 @@ private fun TonnageApp() {
                         onAddExercise = { pickerTarget = PickerTarget.WORKOUT },
                         onSaved = { tab = MainTab.HISTORY },
                         modifier = modifier,
+                        onOpenExercise = { openExerciseId = it },
                     )
                     MainTab.HISTORY -> {
                         val records by historyViewModel.records.collectAsStateWithLifecycle()
