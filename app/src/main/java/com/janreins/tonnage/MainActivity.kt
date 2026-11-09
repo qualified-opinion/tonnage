@@ -16,6 +16,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import com.janreins.tonnage.timer.RestTimer
+import com.janreins.tonnage.ui.workout.WorkoutInProgressBar
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -262,6 +269,8 @@ private fun TonnageApp() {
         else -> MainTabs(
             tab = tab,
             onTabChange = { tab = it },
+            activeWorkout = activeWorkout?.workout?.takeIf { pendingResume == null },
+            rest = rest,
             content = { modifier ->
                 when (tab) {
                     MainTab.WORKOUT -> WorkoutTab(
@@ -367,17 +376,36 @@ private fun TonnageApp() {
 }
 
 @Composable
-private fun MainTabs(tab: MainTab, onTabChange: (MainTab) -> Unit, content: @Composable (Modifier) -> Unit) {
+private fun MainTabs(
+    tab: MainTab,
+    onTabChange: (MainTab) -> Unit,
+    activeWorkout: Workout?,
+    rest: RestTimer.State?,
+    content: @Composable (Modifier) -> Unit,
+) {
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                MainTab.entries.forEach { item ->
-                    NavigationBarItem(
-                        selected = tab == item,
-                        onClick = { onTabChange(item) },
-                        icon = { Icon(item.icon, contentDescription = null) },
-                        label = { Text(item.label) },
-                    )
+            Column {
+                if (activeWorkout != null && tab != MainTab.WORKOUT) {
+                    WorkoutInProgressBar(activeWorkout, rest, onResume = { onTabChange(MainTab.WORKOUT) })
+                }
+                NavigationBar {
+                    MainTab.entries.forEach { item ->
+                        val running = item == MainTab.WORKOUT && activeWorkout != null
+                        NavigationBarItem(
+                            selected = tab == item,
+                            onClick = { onTabChange(item) },
+                            icon = {
+                                if (running) {
+                                    BadgedBox(badge = { Badge() }) { Icon(item.icon, contentDescription = null) }
+                                } else {
+                                    Icon(item.icon, contentDescription = null)
+                                }
+                            },
+                            label = { Text(item.label) },
+                            modifier = if (running) Modifier.semantics { stateDescription = "Workout in progress" } else Modifier,
+                        )
+                    }
                 }
             }
         },
