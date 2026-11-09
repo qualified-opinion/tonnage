@@ -6,6 +6,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.janreins.tonnage.data.model.PastSet
 import com.janreins.tonnage.data.model.ProgressSet
+import com.janreins.tonnage.data.model.RecentExercise
 import com.janreins.tonnage.data.model.RecordSet
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
@@ -297,4 +298,18 @@ abstract class WorkoutDao {
         """,
     )
     abstract suspend fun pastWorkingSets(exerciseIds: List<String>, excludeWorkoutId: Long): List<PastSet>
+
+    /** Exercises from finished workouts, most recently done first. */
+    @Query(
+        """
+        SELECT we.exerciseId AS exerciseId, MAX(w.startedAt) AS lastStartedAt
+        FROM workout_exercises we
+        INNER JOIN workouts w ON w.id = we.workoutId
+        WHERE w.endedAt IS NOT NULL
+        GROUP BY we.exerciseId
+        ORDER BY lastStartedAt DESC
+        LIMIT :limit
+        """,
+    )
+    abstract fun observeRecentExercises(limit: Int): Flow<List<RecentExercise>>
 }

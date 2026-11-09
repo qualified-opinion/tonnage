@@ -21,7 +21,12 @@ data class ExercisesUiState(
     val filter: ExerciseFilter = ExerciseFilter(),
     val exercises: List<Exercise> = emptyList(),
     val totalCount: Int = 0,
+    /** Recently done exercises with when they were last done; empty while searching or filtering. */
+    val recent: List<Pair<Exercise, Long>> = emptyList(),
 )
+
+/** How many recently done exercises the list shows above the full library. */
+const val RECENT_EXERCISES = 8
 
 class ExercisesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -30,12 +35,20 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
     private val seeded = MutableStateFlow(false)
 
     val uiState: StateFlow<ExercisesUiState> =
-        combine(repository.observeAll(), filter, seeded) { all, currentFilter, isSeeded ->
+        combine(
+            repository.observeAll(),
+            filter,
+            seeded,
+            AppDatabase.getInstance(application).workoutDao().observeRecentExercises(RECENT_EXERCISES),
+        ) { all, currentFilter, isSeeded, recent ->
+            val byId = all.associateBy { it.id }
+            val browsing = currentFilter.query.isBlank() && !currentFilter.isActive
             ExercisesUiState(
                 isLoading = !isSeeded && all.isEmpty(),
                 filter = currentFilter,
                 exercises = currentFilter.apply(all),
                 totalCount = all.size,
+                recent = if (browsing) recent.mapNotNull { r -> byId[r.exerciseId]?.let { it to r.lastStartedAt } } else emptyList(),
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExercisesUiState())
 

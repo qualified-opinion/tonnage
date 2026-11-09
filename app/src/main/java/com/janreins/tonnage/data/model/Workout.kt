@@ -134,3 +134,9 @@ data class PastSet(
     val weightKg: Double?,
     val reps: Int?,
 )
+
+/** An exercise from a finished workout and when it was last done, for "used recently" lists. */
+data class RecentExercise(
+    val exerciseId: String,
+    val lastStartedAt: Long,
+)
