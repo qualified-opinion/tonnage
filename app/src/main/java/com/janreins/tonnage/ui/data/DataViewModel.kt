@@ -57,7 +57,7 @@ sealed interface ImportState {
     data class Done(val result: ImportResult) : ImportState
 }
 
-/** Backup and restore, as shown on the More tab. */
+/** Backup and restore, as shown on the Settings tab. */
 sealed interface BackupState {
     data object Working : BackupState
     data class Saved(val workouts: Int) : BackupState
@@ -68,7 +68,7 @@ sealed interface BackupState {
     data class Failed(val message: String) : BackupState
 }
 
-/** Hevy import plus JSON backup and restore: the More tab's data tools. */
+/** Hevy import plus JSON backup and restore: the Settings tab's data tools. */
 class DataViewModel @JvmOverloads constructor(
     application: Application,
     private val encodeBackup: (BackupContents) -> ByteArray = { BackupJson.encode(it) },

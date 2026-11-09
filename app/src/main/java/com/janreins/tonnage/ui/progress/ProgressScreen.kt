@@ -88,7 +88,7 @@ fun ProgressScreen(
             overview.workoutCount == 0 -> ComingSoon(
                 Icons.AutoMirrored.Filled.ShowChart,
                 "Nothing to show yet",
-                "Finish a workout, or import your Hevy history from the More tab, to see charts, weekly stats and milestones.",
+                "Finish a workout, or import your Hevy history from the Settings tab, to see charts, weekly stats and milestones.",
                 content,
             )
             else -> LazyColumn(
