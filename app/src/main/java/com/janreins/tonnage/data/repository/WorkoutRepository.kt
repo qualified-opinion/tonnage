@@ -75,6 +75,12 @@ class WorkoutRepository(
         }
     }
 
+    /** Exercise names per finished workout, in order, for the history list and its search. */
+    fun observeHistoryExerciseNames(): Flow<Map<Long, List<String>>> =
+        workoutDao.observeFinishedExerciseNames().map { rows ->
+            rows.groupBy({ it.workoutId }, { it.name ?: "Unknown exercise" })
+        }
+
     fun observeHistory(): Flow<List<WorkoutSummary>> = workoutDao.observeFinishedSummaries()
 
     suspend fun getActive(): Workout? = workoutDao.getActive()

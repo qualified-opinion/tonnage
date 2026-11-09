@@ -12,6 +12,7 @@ import com.janreins.tonnage.data.model.RoutineWorkoutTime
 import com.janreins.tonnage.data.model.SetType
 import com.janreins.tonnage.data.model.Workout
 import com.janreins.tonnage.data.model.WorkoutExercise
+import com.janreins.tonnage.data.model.WorkoutExerciseName
 import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.model.WorkoutSummary
 import kotlinx.coroutines.flow.Flow
@@ -337,4 +338,17 @@ abstract class WorkoutDao {
         """,
     )
     abstract suspend fun workoutVolume(workoutId: Long): Double
+
+    /** Exercise names of every finished workout, in each workout's order. */
+    @Query(
+        """
+        SELECT we.workoutId AS workoutId, e.name AS name
+        FROM workout_exercises we
+        INNER JOIN workouts w ON w.id = we.workoutId
+        LEFT JOIN exercises e ON e.id = we.exerciseId
+        WHERE w.endedAt IS NOT NULL
+        ORDER BY we.workoutId, we.position
+        """,
+    )
+    abstract fun observeFinishedExerciseNames(): Flow<List<WorkoutExerciseName>>
 }

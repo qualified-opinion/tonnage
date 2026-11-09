@@ -147,3 +147,9 @@ data class RoutineWorkoutTime(
     val startedAt: Long,
     val endedAt: Long,
 )
+
+/** The name of one exercise in a finished workout, in workout order, for the history list. */
+data class WorkoutExerciseName(
+    val workoutId: Long,
+    val name: String?,
+)
