@@ -143,32 +143,33 @@ fun ExercisesScreen(
                 state.isLoading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
-                state.exercises.isEmpty() -> Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                state.isEmpty -> Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                     Text(
                         "No exercises match. Tap + to add your own.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 else -> LazyColumn(Modifier.fillMaxSize()) {
+                    val onRowClick = { exercise: Exercise -> if (picker != null) picker.onToggle(exercise) else onExerciseClick(exercise) }
                     if (state.recent.isNotEmpty()) {
                         item(key = "recent-title") { ListHeading("Used recently") }
                         items(state.recent, key = { (exercise, _) -> "recent-" + exercise.id }) { (exercise, lastAt) ->
-                            ExerciseRow(
-                                exercise,
-                                selected = picker?.selected?.contains(exercise.id),
-                                onClick = { if (picker != null) picker.onToggle(exercise) else onExerciseClick(exercise) },
-                                lastDone = lastAt,
-                            )
+                            ExerciseRow(exercise, selected = picker?.selected?.contains(exercise.id), onClick = { onRowClick(exercise) }, lastDone = lastAt)
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                         }
-                        item(key = "all-title") { ListHeading("All exercises") }
+                    }
+                    if (state.popular.isNotEmpty()) {
+                        item(key = "popular-title") { ListHeading("Popular") }
+                        items(state.popular, key = { "popular-" + it.id }) { exercise ->
+                            ExerciseRow(exercise, selected = picker?.selected?.contains(exercise.id), onClick = { onRowClick(exercise) })
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                        }
+                    }
+                    if ((state.recent.isNotEmpty() || state.popular.isNotEmpty()) && state.exercises.isNotEmpty()) {
+                        item(key = "all-title") { ListHeading(if (state.filter.isBrowsing) "All exercises" else "More matches") }
                     }
                     items(state.exercises, key = { it.id }) { exercise ->
-                        ExerciseRow(
-                            exercise,
-                            selected = picker?.selected?.contains(exercise.id),
-                            onClick = { if (picker != null) picker.onToggle(exercise) else onExerciseClick(exercise) },
-                        )
+                        ExerciseRow(exercise, selected = picker?.selected?.contains(exercise.id), onClick = { onRowClick(exercise) })
                         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
                     }
                 }
