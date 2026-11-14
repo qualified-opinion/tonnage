@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.ShowChart
-import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +63,16 @@ import com.janreins.tonnage.ui.components.ComingSoon
 import com.janreins.tonnage.ui.components.bodyMapColor
 import com.janreins.tonnage.ui.components.rememberBodyMapArt
 import com.janreins.tonnage.ui.theme.PrGold
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.ui.text.style.TextAlign
+import com.janreins.tonnage.domain.MilestoneKind
+import com.janreins.tonnage.domain.Milestones
+import com.janreins.tonnage.ui.components.MonthCalendar
+import com.janreins.tonnage.ui.components.milestoneIcon
+import com.janreins.tonnage.ui.components.monthName
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -101,7 +110,7 @@ fun ProgressScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { WeekCard(overview, viewModel) }
-                item { MusclesCard(overview.muscles, isThisWeek = overview.selectedWeek == overview.weeks.lastIndex) }
+                item { MusclesCard(overview, viewModel) }
                 item { MilestonesCard(overview) }
                 if (bodyWeight.entries.isNotEmpty()) item { BodyWeightCard(bodyWeight.entries, bodyWeight.today) }
                 item { SectionTitle("Exercises") }
@@ -233,26 +242,70 @@ private fun setCount(sets: Int): String = "$sets ${if (sets == 1) "set" else "se
 
 /**
  * Working sets per main muscle as a heat map on front and back body figures: the more sets, the
- * deeper the green. Tapping a muscle shows its sets, and the full list sits behind "Show list".
+ * deeper the green. "Week" follows the week above; "Month" has its own month, with a calendar of
+ * training days and the month's totals. Tapping a muscle shows its sets, and the full list sits
+ * behind "Show list".
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MusclesCard(muscles: List<MuscleSets>, isThisWeek: Boolean) {
+private fun MusclesCard(overview: ProgressOverview, viewModel: ProgressViewModel) {
+    var byMonth by rememberSaveable { mutableStateOf(false) }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedPart by rememberSaveable { mutableStateOf<String?>(null) }
     var showList by rememberSaveable { mutableStateOf(false) }
+    val month = overview.month
+    val muscles = if (byMonth) month.muscles else overview.muscles
     val setsByMuscle = muscles.associate { it.muscle to it.sets }
     val mapped = rememberBodyMapArt().muscles
     val unmapped = muscles.filter { it.muscle !in mapped }.sumOf { it.sets }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Muscles worked", style = MaterialTheme.typography.titleMedium)
+            Text(if (byMonth) "Month history" else "Muscles worked", style = MaterialTheme.typography.titleMedium)
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                listOf(false to "Week", true to "Month").forEachIndexed { index, (monthly, label) ->
+                    SegmentedButton(
+                        selected = byMonth == monthly,
+                        onClick = { byMonth = monthly },
+                        shape = SegmentedButtonDefaults.itemShape(index, 2),
+                    ) { Text(label) }
+                }
+            }
+            if (byMonth) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = viewModel::previousMonth, enabled = overview.hasEarlierMonth) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "Previous month")
+                    }
+                    Text(
+                        monthName(month.month),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = viewModel::nextMonth, enabled = overview.hasLaterMonth) {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Next month")
+                    }
+                }
+                MonthCalendar(month.month, month.workoutDays, overview.today)
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    Stat(month.workouts.toString(), if (month.workouts == 1) "workout" else "workouts")
+                    Stat(Format.count(month.sets), "working sets")
+                    Stat(Format.volume(month.volumeKg), "volume")
+                }
+                HorizontalDivider()
+            }
             Text(
-                "Working sets by main muscle, for the week above. Tap a muscle to see its sets.",
+                if (byMonth) {
+                    "Working sets by main muscle, for the month above. Tap a muscle to see its sets."
+                } else {
+                    "Working sets by main muscle, for the week above. Tap a muscle to see its sets."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (muscles.isEmpty()) {
-                Text(if (isThisWeek) "No sets logged yet this week." else "No sets logged that week.", style = MaterialTheme.typography.bodyMedium)
+                val current = if (byMonth) overview.monthsBack == 0 else overview.selectedWeek == overview.weeks.lastIndex
+                val period = if (byMonth) "month" else "week"
+                Text(if (current) "No sets logged yet this $period." else "No sets logged that $period.", style = MaterialTheme.typography.bodyMedium)
             }
             BodyMap(
                 setsByMuscle = setsByMuscle,
@@ -340,16 +393,26 @@ private fun MuscleBars(muscles: List<MuscleSets>) {
     }
 }
 
+/** How many of the closest milestones show before "Show all". */
+private const val SHORT_NEXT_LIST = 4
+
 @Composable
 private fun MilestonesCard(overview: ProgressOverview) {
     val report = overview.milestones
     var showAll by rememberSaveable { mutableStateOf(false) }
+    var showAllNext by rememberSaveable { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Milestones", style = MaterialTheme.typography.titleMedium)
             if (report.next.isNotEmpty()) {
                 Text("Next up", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                report.next.forEach { NextRow(it) }
+                val shownNext = if (showAllNext) report.next else report.next.take(SHORT_NEXT_LIST)
+                shownNext.forEach { NextRow(it) }
+                if (report.next.size > SHORT_NEXT_LIST) {
+                    TextButton(onClick = { showAllNext = !showAllNext }) {
+                        Text(if (showAllNext) "Show fewer" else "Show all ${report.next.size} goals")
+                    }
+                }
             }
             if (report.achieved.isNotEmpty()) {
                 Text(
@@ -365,22 +428,35 @@ private fun MilestonesCard(overview: ProgressOverview) {
                     }
                 }
             }
+            if (Milestones.KEY_LIFTS.keys.any { id -> overview.exercises.any { it.exerciseId == id } } &&
+                report.next.none { it.kind == MilestoneKind.STRENGTH } && report.achieved.none { it.kind == MilestoneKind.STRENGTH }
+            ) {
+                Text(
+                    "Log your body weight in Settings to unlock strength milestones, like bench press at body weight.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun NextRow(next: NextMilestone) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row {
-            Text(next.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(
-                "${next.current} / ${next.target}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(milestoneIcon(next.kind), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row {
+                Text(next.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Text(
+                    "${next.current} / ${next.target}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LinearProgressIndicator(progress = { next.fraction.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
         }
-        LinearProgressIndicator(progress = { next.fraction.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
     }
 }
 
@@ -388,7 +464,9 @@ private fun NextRow(next: NextMilestone) {
 private fun AchievedRow(milestone: Milestone) {
     val date = java.time.Instant.ofEpochMilli(milestone.achievedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = PrGold, modifier = Modifier.size(18.dp))
+        Box(Modifier.size(28.dp).background(PrGold.copy(alpha = 0.18f), CircleShape), contentAlignment = Alignment.Center) {
+            Icon(milestoneIcon(milestone.kind), contentDescription = null, tint = PrGold, modifier = Modifier.size(16.dp))
+        }
         Spacer(Modifier.width(8.dp))
         Text(milestone.title, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
         Text(

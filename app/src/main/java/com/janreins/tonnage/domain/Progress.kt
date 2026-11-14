@@ -5,6 +5,7 @@ import com.janreins.tonnage.data.model.TrackingType
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -68,6 +69,17 @@ data class WeekStats(val weekStart: LocalDate, val workouts: Int, val sets: Int,
 data class Streak(val current: Int, val longest: Int)
 
 data class MuscleSets(val muscle: String, val sets: Int)
+
+/** One calendar month: which days had workouts, its totals and the muscles it worked. */
+data class MonthStats(
+    val month: YearMonth,
+    /** Workouts per day of the month, only for days with at least one. */
+    val workoutDays: Map<Int, Int>,
+    val workouts: Int,
+    val sets: Int,
+    val volumeKg: Double,
+    val muscles: List<MuscleSets>,
+)
 
 object Progress {
 
@@ -193,7 +205,11 @@ object Progress {
      * exercise with two main muscles counts for both; exercises without muscles count as "other".
      */
     fun muscles(sets: List<ProgressSet>, weekStart: LocalDate, zone: ZoneId = ZoneId.systemDefault()): List<MuscleSets> =
-        sets.filter { weekStart(it.startedAt, zone) == weekStart }
+        muscles(sets.filter { weekStart(it.startedAt, zone) == weekStart })
+
+    /** Working sets per main muscle over all of [sets], counted as for a week. */
+    fun muscles(sets: List<ProgressSet>): List<MuscleSets> =
+        sets
             .flatMap { set ->
                 set.primaryMuscles.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
                     .ifEmpty { listOf(OTHER_MUSCLE) }
@@ -201,6 +217,31 @@ object Progress {
             .groupingBy { it }.eachCount()
             .map { (muscle, count) -> MuscleSets(muscle, count) }
             .sortedWith(compareByDescending<MuscleSets> { it.sets }.thenBy { it.muscle })
+
+    fun monthOf(timeMs: Long, zone: ZoneId = ZoneId.systemDefault()): YearMonth =
+        YearMonth.from(Instant.ofEpochMilli(timeMs).atZone(zone))
+
+    /**
+     * The calendar month [month]: workouts per day (counted from [workoutStarts], so a workout with
+     * no sets still marks its day), and sets, volume and muscles from [sets], as for a week.
+     */
+    fun month(
+        workoutStarts: List<Long>,
+        sets: List<ProgressSet>,
+        month: YearMonth,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): MonthStats {
+        val starts = workoutStarts.map { Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }.filter { YearMonth.from(it) == month }
+        val monthSets = sets.filter { monthOf(it.startedAt, zone) == month }
+        return MonthStats(
+            month = month,
+            workoutDays = starts.groupingBy { it.dayOfMonth }.eachCount(),
+            workouts = starts.size,
+            sets = monthSets.size,
+            volumeKg = monthSets.sumOf { (it.weightKg ?: 0.0) * (it.reps ?: 0) },
+            muscles = muscles(monthSets),
+        )
+    }
 
     /**
      * The current run of weeks with a workout, and the longest ever. The current run still counts

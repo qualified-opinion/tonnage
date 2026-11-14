@@ -12,7 +12,12 @@ import com.janreins.tonnage.data.repository.ActiveWorkout
 import com.janreins.tonnage.data.repository.RoutineRepository
 import com.janreins.tonnage.data.repository.WorkoutRepository
 import com.janreins.tonnage.data.settings.SettingsStore
+import com.janreins.tonnage.domain.Achievement
+import com.janreins.tonnage.domain.Achievements
 import com.janreins.tonnage.domain.ExerciseBlock
+import com.janreins.tonnage.domain.MonthStats
+import com.janreins.tonnage.domain.Progress
+import com.janreins.tonnage.domain.WorkoutStart
 import com.janreins.tonnage.domain.PersonalRecord
 import com.janreins.tonnage.domain.ProgressionHint
 import com.janreins.tonnage.domain.MuscleSets
@@ -22,6 +27,10 @@ import com.janreins.tonnage.service.WorkoutService
 import com.janreins.tonnage.service.WorkoutNotifications
 import com.janreins.tonnage.timer.RestTimer
 import com.janreins.tonnage.timer.WorkoutSession
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,10 +38,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Shown before saving: totals for the session, any records it set and the muscles it worked. */
 data class FinishPreview(
@@ -43,6 +54,12 @@ data class FinishPreview(
     val muscles: List<MuscleSets> = emptyList(),
     /** Volume of the last workout from the same routine, to compare with; null without one. */
     val lastRoutineVolumeKg: Double? = null,
+    /** Records, milestones, workout bests and new exercises, in the order they pop up. */
+    val achievements: List<Achievement> = emptyList(),
+    /** The month this workout is in, counting this workout. */
+    val month: MonthStats? = null,
+    /** The day this workout started, marked on the month calendar. */
+    val day: LocalDate? = null,
 )
 
 class WorkoutViewModel @JvmOverloads constructor(
@@ -269,14 +286,41 @@ class WorkoutViewModel @JvmOverloads constructor(
     fun prepareFinish() {
         val current = active.value ?: return
         viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val records = repository.recordsFor(current)
+            val rewards = rewards(current, records, now)
             _finishPreview.value = FinishPreview(
-                summary = WorkoutStats.summarize(current.blocks, current.workout.startedAt, System.currentTimeMillis()),
-                records = repository.recordsFor(current),
+                summary = WorkoutStats.summarize(current.blocks, current.workout.startedAt, now),
+                records = records,
                 title = current.workout.title,
                 startedAt = current.workout.startedAt,
                 muscles = WorkoutStats.muscleSets(current.blocks),
                 lastRoutineVolumeKg = repository.lastRoutineVolume(current),
+                achievements = rewards.first,
+                month = rewards.second,
+                day = Instant.ofEpochMilli(current.workout.startedAt).atZone(ZoneId.systemDefault()).toLocalDate(),
             )
+        }
+    }
+
+    /** Achievements and this month so far, worked out from finished history as Progress does. */
+    private suspend fun rewards(current: ActiveWorkout, records: List<PersonalRecord>, now: Long): Pair<List<Achievement>, MonthStats> {
+        val workoutDao = db.workoutDao()
+        val history = workoutDao.observeFinishedSummaries().first().map { WorkoutStart(it.id, it.startedAt, it.endedAt) }
+        val historySets = workoutDao.observeProgressSets().first()
+        val bodyWeights = db.bodyWeightDao().observeAll().first()
+        return withContext(Dispatchers.Default) {
+            val zone = ZoneId.systemDefault()
+            val workout = WorkoutStart(current.workout.id, current.workout.startedAt, now)
+            val sets = Achievements.progressSets(workout.workoutId, workout.startedAt, current.blocks)
+            val achievements = Achievements.forWorkout(workout, sets, history, historySets, records, now, zone, bodyWeights)
+            val month = Progress.month(
+                (history + workout).map { it.startedAt },
+                historySets + sets,
+                Progress.monthOf(workout.startedAt, zone),
+                zone,
+            )
+            achievements to month
         }
     }
 

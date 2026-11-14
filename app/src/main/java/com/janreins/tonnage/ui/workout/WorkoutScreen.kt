@@ -1,6 +1,5 @@
 package com.janreins.tonnage.ui.workout
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -85,7 +84,6 @@ import com.janreins.tonnage.data.model.WorkoutSet
 import com.janreins.tonnage.data.repository.ActiveWorkout
 import com.janreins.tonnage.domain.Format
 import com.janreins.tonnage.domain.PersonalRecord
-import com.janreins.tonnage.domain.PrKind
 import com.janreins.tonnage.domain.WorkoutStats
 import com.janreins.tonnage.timer.RestTimer
 import com.janreins.tonnage.ui.theme.PrGold
@@ -624,22 +622,10 @@ private fun FinishScreen(
                         StatTile(summary.completedSets.toString(), if (summary.completedSets == 1) "set" else "sets", Modifier.weight(1f))
                         StatTile(summary.exerciseCount.toString(), if (summary.exerciseCount == 1) "exercise" else "exercises", Modifier.weight(1f))
                     }
-                    if (preview.records.isNotEmpty()) {
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .background(PrGold.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
-                                .border(1.dp, PrGold.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            val count = preview.records.size
-                            Text(if (count == 1) "1 new record" else "$count new records", style = MaterialTheme.typography.titleSmall)
-                            preview.records.forEach { RecordLine(it) }
-                        }
-                    }
+                    AchievementsSection(preview.achievements)
                     if (preview.muscles.isNotEmpty()) {
                         Text("Muscles worked", style = MaterialTheme.typography.titleSmall)
+                        FinishBodyMap(preview.muscles)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             preview.muscles.forEach { muscle ->
                                 val name = if (muscle.muscle == Progress.OTHER_MUSCLE) "Other" else ExerciseOptions.display(muscle.muscle)
@@ -654,6 +640,7 @@ private fun FinishScreen(
                             }
                         }
                     }
+                    preview.month?.let { FinishMonthSection(it, preview.day) }
                     if (filled > 0) {
                         val verb = if (filled == 1) "isn't" else "aren't"
                         Text("$filledSets $verb ticked and won't be saved unless you tick them.", color = MaterialTheme.colorScheme.error)
@@ -703,10 +690,7 @@ private fun StatTile(value: String, label: String, modifier: Modifier = Modifier
 
 @Composable
 fun RecordLine(record: PersonalRecord) {
-    fun value(v: Double) = when (record.kind) {
-        PrKind.MOST_REPS -> "${v.toInt()} reps"
-        else -> "${Format.number(v)} kg"
-    }
+    fun value(v: Double) = WorkoutStats.recordText(record.kind, v)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = PrGold, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
