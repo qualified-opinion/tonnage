@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 
@@ -140,5 +141,26 @@ class ProgressTest {
         assertEquals("15 reps", ProgressMetric.MOST_REPS.format(15.0))
         assertEquals("50:00", ProgressMetric.TOTAL_TIME.format(3000.0))
         assertTrue(ProgressMetric.DISTANCE.format(7.0).startsWith("7 km"))
+    }
+
+    @Test
+    fun monthsMarkTrainingDaysAndCountOnlyThatMonth() {
+        // Two workouts on 1 Oct, one on 31 Oct late in the evening, one in early November.
+        val starts = listOf(at("2026-10-01"), at("2026-10-01", hour = 18), at("2026-10-31", hour = 23), at("2026-11-02"))
+        val sets = listOf(
+            set(1, "2026-10-01", weight = 50.0, reps = 10),
+            set(3, "2026-10-31", exerciseId = "squat", weight = 100.0, reps = 5, muscles = "quadriceps"),
+            set(4, "2026-11-02", weight = 60.0, reps = 5),
+        )
+        val october = Progress.month(starts, sets, YearMonth.of(2026, 10), zone)
+
+        assertEquals(mapOf(1 to 2, 31 to 1), october.workoutDays)
+        assertEquals(3, october.workouts)
+        assertEquals(2, october.sets)
+        assertEquals(1000.0, october.volumeKg, 0.0)
+        assertEquals(listOf(MuscleSets("chest", 1), MuscleSets("quadriceps", 1), MuscleSets("triceps", 1)), october.muscles)
+        // In a zone an hour ahead, the 31 Oct 23:00 workout falls on 1 November.
+        val ahead = Progress.month(starts, sets, YearMonth.of(2026, 11), ZoneOffset.ofHours(1))
+        assertEquals(mapOf(1 to 1, 2 to 1), ahead.workoutDays)
     }
 }

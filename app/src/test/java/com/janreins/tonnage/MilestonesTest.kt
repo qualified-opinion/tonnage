@@ -1,5 +1,6 @@
 package com.janreins.tonnage
 
+import com.janreins.tonnage.data.model.BodyWeight
 import com.janreins.tonnage.data.model.ProgressSet
 import com.janreins.tonnage.data.model.TrackingType
 import com.janreins.tonnage.domain.MilestoneKind
@@ -88,6 +89,90 @@ class MilestonesTest {
     fun nothingLoggedMeansOnlyAFirstWorkoutToAimFor() {
         val report = Milestones.report(emptyList(), emptyList(), now = at("2026-06-09"), zone = zone)
         assertTrue(report.achieved.isEmpty())
-        assertEquals(setOf("First workout", "10,000 kg lifted", "2-week streak"), report.next.map { it.title }.toSet())
+        assertEquals(
+            setOf("First workout", "10,000 kg lifted", "10 hours trained", "10 different exercises", "2-week streak", "4 workouts in a month"),
+            report.next.map { it.title }.toSet(),
+        )
+    }
+
+    private fun set(workoutId: Long, date: String, exerciseId: String, weight: Double?, reps: Int) = ProgressSet(
+        workoutId, at(date), exerciseId, exerciseId, TrackingType.WEIGHT_REPS.name, "chest", weight, reps, null, null,
+    )
+
+    @Test
+    fun strengthMilestonesUseTheBodyWeightLoggedByThatDay() {
+        val workouts = weekly(2)
+        val weights = listOf(
+            BodyWeight(epochDay = LocalDate.parse("2026-05-20").toEpochDay(), weightKg = 80.0, createdAt = 0),
+            BodyWeight(epochDay = LocalDate.parse("2026-06-05").toEpochDay(), weightKg = 100.0, createdAt = 0),
+        )
+        // 80 kg at 80 kg body weight is 1×; 100 kg a week later at 100 kg body weight is still 1×.
+        val sets = listOf(bench(1, "2026-06-01", 80.0), bench(2, "2026-06-08", 100.0))
+        val report = Milestones.report(workouts, sets, now = at("2026-06-09"), zone = zone, bodyWeights = weights)
+
+        val strength = report.achieved.filter { it.kind == MilestoneKind.STRENGTH }
+        assertEquals(setOf("Bench press 0.5× body weight", "Bench press 0.75× body weight", "Bench press 1× body weight"), strength.map { it.title }.toSet())
+        assertTrue(strength.all { it.workoutId == 1L })
+        val next = report.next.single { it.kind == MilestoneKind.STRENGTH }
+        assertEquals("Bench press 1.25× body weight", next.title)
+        assertEquals("1×", next.current)
+        // Without a body weight there are no strength milestones at all.
+        assertTrue(Milestones.report(workouts, sets, now = at("2026-06-09"), zone = zone).next.none { it.kind == MilestoneKind.STRENGTH })
+    }
+
+    @Test
+    fun repMilestonesCountTheBestSetOfEachKeyExercise() {
+        val workouts = weekly(2)
+        val sets = listOf(
+            set(1, "2026-06-01", "Pullups", null, 6),
+            set(2, "2026-06-08", "Pullups", null, 11),
+            set(2, "2026-06-08", "Parallel_Bar_Dip", null, 5),
+        )
+        val report = Milestones.report(workouts, sets, now = at("2026-06-09"), zone = zone)
+
+        val reps = report.achieved.filter { it.kind == MilestoneKind.REPS }
+        assertEquals(setOf("5 pull-ups in one set", "10 pull-ups in one set", "5 dips in one set"), reps.map { it.title }.toSet())
+        assertEquals(1L, reps.single { it.title == "5 pull-ups in one set" }.workoutId)
+        assertEquals(setOf("15 pull-ups in one set", "10 dips in one set"), report.next.filter { it.kind == MilestoneKind.REPS }.map { it.title }.toSet())
+    }
+
+    @Test
+    fun hoursTrainedCapEachWorkoutAtFourHours() {
+        // Three 2-hour workouts and one left running for 20 hours (counted as 4): 10 hours in the fourth.
+        val hour = 3_600_000L
+        val workouts = weekly(4).mapIndexed { i, w -> w.copy(endedAt = w.startedAt + if (i == 3) 20 * hour else 2 * hour) }
+        val report = Milestones.report(workouts, emptyList(), now = at("2026-06-30"), zone = zone)
+
+        assertEquals(4L, report.achieved.single { it.kind == MilestoneKind.TIME }.workoutId)
+        val next = report.next.single { it.kind == MilestoneKind.TIME }
+        assertEquals("25 hours trained", next.title)
+        assertEquals("10 h", next.current)
+    }
+
+    @Test
+    fun differentExercisesAreCountedOnce() {
+        val workouts = weekly(2)
+        val first = (1..6).map { set(1, "2026-06-01", "Exercise_$it", 20.0, 5) }
+        val second = (4..10).map { set(2, "2026-06-08", "Exercise_$it", 20.0, 5) }
+        val report = Milestones.report(workouts, first + second, now = at("2026-06-09"), zone = zone)
+
+        val variety = report.achieved.single { it.kind == MilestoneKind.VARIETY }
+        assertEquals("10 different exercises", variety.title)
+        assertEquals(2L, variety.workoutId)
+    }
+
+    @Test
+    fun busiestMonthIsReachedByTheWorkoutThatFillsIt() {
+        // Five workouts in June, then eight in July: 4 is reached in June, 8 by July's eighth workout.
+        val june = (1..5).map { WorkoutStart(it.toLong(), at("2026-06-${(it * 3).toString().padStart(2, '0')}")) }
+        val july = (1..8).map { WorkoutStart(10L + it, at("2026-07-${(it * 3).toString().padStart(2, '0')}")) }
+        val report = Milestones.report(june + july, emptyList(), now = at("2026-07-25"), zone = zone)
+
+        val months = report.achieved.filter { it.kind == MilestoneKind.MONTH }
+        assertEquals(listOf("8 workouts in a month", "4 workouts in a month"), months.map { it.title })
+        assertEquals(listOf(18L, 4L), months.map { it.workoutId })
+        val next = report.next.single { it.kind == MilestoneKind.MONTH }
+        assertEquals("12 workouts in a month", next.title)
+        assertEquals("8", next.current)
     }
 }

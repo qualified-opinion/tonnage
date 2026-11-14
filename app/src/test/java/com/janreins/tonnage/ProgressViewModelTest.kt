@@ -14,6 +14,7 @@ import com.janreins.tonnage.domain.MilestoneKind
 import com.janreins.tonnage.ui.progress.ProgressViewModel
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.filterNotNull
@@ -109,5 +110,31 @@ class ProgressViewModelTest {
         assertEquals(0, later.week.workouts)
         assertEquals(0, later.streak.current)
         assertEquals("0", later.milestones.next.single { it.kind == MilestoneKind.STREAK }.current)
+    }
+
+    @Test fun monthViewStepsBackToTheFirstWorkoutMonthAndNoFurther() = runTest {
+        workout("2026-09-10T10:00:00Z")
+        workout("2026-11-02T10:00:00Z")
+        val now = Instant.parse("2026-11-14T12:00:00Z").toEpochMilli()
+        val model = ProgressViewModel(app, db, { now }, { ZoneId.of("UTC") }, dispatcher)
+        store.put("progress", model)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { model.overview.collect {} }
+        val november = model.overview.filterNotNull().first()
+        assertEquals(YearMonth.of(2026, 11), november.month.month)
+        assertEquals(mapOf(2 to 1), november.month.workoutDays)
+        assertEquals(LocalDate.parse("2026-11-14"), november.today)
+        assertEquals(true to false, november.hasEarlierMonth to november.hasLaterMonth)
+
+        model.previousMonth(); runCurrent()
+        val october = model.overview.filterNotNull().first { it.month.month == YearMonth.of(2026, 10) }
+        assertEquals(0, october.month.workouts)
+        model.previousMonth(); runCurrent()
+        val september = model.overview.filterNotNull().first { it.month.month == YearMonth.of(2026, 9) }
+        assertEquals(mapOf(10 to 1), september.month.workoutDays)
+        assertEquals(false to true, september.hasEarlierMonth to september.hasLaterMonth)
+        model.previousMonth(); runCurrent()
+        assertEquals(YearMonth.of(2026, 9), model.overview.value?.month?.month)
+        model.nextMonth(); runCurrent()
+        assertEquals(YearMonth.of(2026, 10), model.overview.filterNotNull().first { it.month.month != YearMonth.of(2026, 9) }.month.month)
     }
 }

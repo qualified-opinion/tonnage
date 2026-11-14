@@ -122,6 +122,12 @@ object WorkoutStats {
         PrKind.MOST_REPS -> (reps ?: 0).toDouble()
     }
 
+    /** A record value with its unit, e.g. "100 kg" or "12 reps". */
+    fun recordText(kind: PrKind, value: Double): String = when (kind) {
+        PrKind.MOST_REPS -> "${value.toInt()} reps"
+        else -> "${Format.number(value)} kg"
+    }
+
     /** Each kind establishes its own positive baseline before a later workout can beat it. */
     private fun isRecord(value: Double, previous: Double): Boolean = previous > 0.0 && value > previous
 
