@@ -72,8 +72,10 @@ class AchievementsTest {
 
         val achievements = Achievements.forWorkout(workout, sets, history, historySets, listOf(record), now = at("2026-06-15"), zone = zone)
 
-        assertEquals(AchievementKind.RECORD, achievements.first().kind)
-        assertEquals("Heaviest weight 105 kg (was 100 kg)", achievements.first().detail)
+        // 6 × 100 kg × 5 + 20 kg × 12 = 3,240 kg: a pickup truck, shown first.
+        assertEquals("You lifted about a pickup truck", achievements[0].title)
+        assertEquals(AchievementKind.RECORD, achievements[1].kind)
+        assertEquals("Heaviest weight 105 kg (was 100 kg)", achievements[1].detail)
         val milestones = achievements.filter { it.kind == AchievementKind.MILESTONE }
         // The fifth workout; earlier steps (first workout, 4 in a month) were reached before it.
         assertTrue(milestones.any { it.title == "5 workouts" && it.milestoneKind == MilestoneKind.WORKOUTS })
@@ -88,11 +90,28 @@ class AchievementsTest {
     @Test
     fun aFirstWorkoutOnlyGetsItsMilestones() {
         val workout = WorkoutStart(1, at("2026-06-15"))
-        val sets = Achievements.progressSets(1, workout.startedAt, listOf(block(bench, 1, done(1, 60.0, 5))))
+        val sets = Achievements.progressSets(1, workout.startedAt, listOf(block(bench, 1, done(1, 60.0, 4))))
         val achievements = Achievements.forWorkout(workout, sets, emptyList(), emptyList(), emptyList(), now = at("2026-06-15"), zone = zone)
 
-        assertTrue(achievements.all { it.kind == AchievementKind.MILESTONE })
+        assertEquals("You lifted about a motorbike", achievements.first().title)
+        assertTrue(achievements.drop(1).all { it.kind == AchievementKind.MILESTONE })
         assertTrue(achievements.any { it.title == "First workout" })
         assertTrue(achievements.any { it.title == "Bench press 60 kg" })
+    }
+
+    @Test
+    fun theTotalIsShownAsTheHeaviestThingItReaches() {
+        assertEquals(null, Achievements.equivalent(0.0))
+        assertEquals(null, Achievements.equivalent(3.5))
+        assertEquals("You lifted about a house cat", Achievements.equivalent(4.0)?.title)
+        // Up to 1.5 of a thing reads as one; beyond that it's counted.
+        assertEquals("You lifted about a school bus", Achievements.equivalent(17_000.0)?.title)
+        assertEquals("You lifted about 2 pickup trucks", Achievements.equivalent(5_200.0)?.title)
+        val bus = Achievements.equivalent(12_340.0)!!
+        assertEquals(AchievementKind.EQUIVALENT, bus.kind)
+        assertEquals("12,340 kg in total; a school bus weighs about 12,000 kg", bus.detail)
+        assertEquals("You lifted about 2 jumbo jets", Achievements.equivalent(400_000.0)?.title)
+        // Lightest first, so the pick is always the heaviest thing reached.
+        assertEquals(Achievements.THINGS.sortedBy { it.kg }, Achievements.THINGS)
     }
 }

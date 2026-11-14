@@ -56,8 +56,8 @@ private const val POP_START_MS = 250
 private const val POP_GAP_MS = 160
 
 /**
- * The workout's achievements as badges that pop in one after another: records in gold, milestones
- * in apricot, workout bests and new exercises in green.
+ * The workout's achievements as badges that pop in one after another: what the total weighs as
+ * and milestones in apricot, records in gold, workout bests and new exercises in green.
  */
 @Composable
 internal fun AchievementsSection(achievements: List<Achievement>) {
@@ -88,7 +88,7 @@ private fun PoppingBadge(achievement: Achievement, index: Int) {
 @Composable
 private fun accent(achievement: Achievement): Color = when (achievement.kind) {
     AchievementKind.RECORD -> PrGold
-    AchievementKind.MILESTONE -> MaterialTheme.colorScheme.tertiary
+    AchievementKind.EQUIVALENT, AchievementKind.MILESTONE -> MaterialTheme.colorScheme.tertiary
     AchievementKind.WORKOUT_BEST, AchievementKind.NEW_EXERCISE -> MaterialTheme.colorScheme.primary
 }
 
@@ -110,6 +110,7 @@ private fun AchievementBadge(achievement: Achievement) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             val label = when (achievement.kind) {
+                AchievementKind.EQUIVALENT -> "Total lifted"
                 AchievementKind.RECORD -> "New record"
                 AchievementKind.MILESTONE -> "Milestone"
                 AchievementKind.WORKOUT_BEST -> "Workout best"

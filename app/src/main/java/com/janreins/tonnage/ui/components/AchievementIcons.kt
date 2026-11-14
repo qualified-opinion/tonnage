@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FiberNew
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.MonitorWeight
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Timer
@@ -32,6 +33,7 @@ fun milestoneIcon(kind: MilestoneKind): ImageVector = when (kind) {
 }
 
 fun achievementIcon(achievement: Achievement): ImageVector = when (achievement.kind) {
+    AchievementKind.EQUIVALENT -> Icons.Filled.LocalShipping
     AchievementKind.RECORD -> Icons.Filled.EmojiEvents
     AchievementKind.MILESTONE -> achievement.milestoneKind?.let(::milestoneIcon) ?: Icons.Filled.EmojiEvents
     AchievementKind.WORKOUT_BEST -> Icons.Filled.Bolt

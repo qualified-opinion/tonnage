@@ -5,7 +5,7 @@ import com.janreins.tonnage.data.model.ProgressSet
 import com.janreins.tonnage.data.model.SetType
 import java.time.ZoneId
 
-enum class AchievementKind { RECORD, MILESTONE, WORKOUT_BEST, NEW_EXERCISE }
+enum class AchievementKind { EQUIVALENT, RECORD, MILESTONE, WORKOUT_BEST, NEW_EXERCISE }
 
 /** One reward shown on the finish screen, such as a record or a milestone reached. */
 data class Achievement(
@@ -21,6 +21,44 @@ data class Achievement(
  * Progress and History do, so what pops up now is what those screens show after saving.
  */
 object Achievements {
+
+    /** Something heavy to compare a workout's total with, at a rough everyday weight. */
+    data class Thing(val one: String, val many: String, val kg: Double)
+
+    /** Lightest first. Weights are round, typical figures; the point is the picture, not the decimals. */
+    val THINGS = listOf(
+        Thing("a house cat", "house cats", 4.0),
+        Thing("a golden retriever", "golden retrievers", 30.0),
+        Thing("a washing machine", "washing machines", 70.0),
+        Thing("a giant panda", "giant pandas", 100.0),
+        Thing("a motorbike", "motorbikes", 200.0),
+        Thing("a grand piano", "grand pianos", 450.0),
+        Thing("a cow", "cows", 700.0),
+        Thing("a small car", "small cars", 1_200.0),
+        Thing("a hippo", "hippos", 1_500.0),
+        Thing("a pickup truck", "pickup trucks", 2_500.0),
+        Thing("an elephant", "elephants", 6_000.0),
+        Thing("a T. rex", "T. rexes", 8_000.0),
+        Thing("a school bus", "school buses", 12_000.0),
+        Thing("a fire truck", "fire trucks", 20_000.0),
+        Thing("a loaded semi-truck", "loaded semi-trucks", 36_000.0),
+        Thing("a jumbo jet", "jumbo jets", 180_000.0),
+    )
+
+    /**
+     * The workout's total as the heaviest thing it reaches, e.g. "You lifted about 2 school buses";
+     * null under the lightest thing. Up to 1.5 of a thing reads as one.
+     */
+    fun equivalent(totalKg: Double): Achievement? {
+        val thing = THINGS.lastOrNull { totalKg >= it.kg } ?: return null
+        val count = Math.round(totalKg / thing.kg).toInt()
+        val what = if (totalKg / thing.kg < 1.5) thing.one else "$count ${thing.many}"
+        return Achievement(
+            AchievementKind.EQUIVALENT,
+            "You lifted about $what",
+            "${Format.volume(totalKg)} in total; ${thing.one} weighs about ${Format.volume(thing.kg)}",
+        )
+    }
 
     /** The working sets of [blocks] that will be saved, as Progress counts them. */
     fun progressSets(workoutId: Long, startedAt: Long, blocks: List<ExerciseBlock>): List<ProgressSet> =
@@ -44,7 +82,7 @@ object Achievements {
         }
 
     /**
-     * Records first, then milestones this workout reaches, then bests for a whole workout and
+     * What the total weighs as, then records, then milestones this workout reaches, then bests for a whole workout and
      * exercises done for the first time. Workout bests and new exercises need some earlier history,
      * so a first workout (or the first one before a Hevy import) isn't all achievements.
      */
@@ -59,6 +97,8 @@ object Achievements {
         bodyWeights: List<BodyWeight> = emptyList(),
     ): List<Achievement> {
         val result = mutableListOf<Achievement>()
+
+        equivalent(workoutSets.sumOf { (it.weightKg ?: 0.0) * (it.reps ?: 0) })?.let { result += it }
 
         records.forEach { record ->
             result += Achievement(
