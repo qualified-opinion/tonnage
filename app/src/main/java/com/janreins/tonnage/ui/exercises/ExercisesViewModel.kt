@@ -19,14 +19,19 @@ import kotlinx.coroutines.launch
 data class ExercisesUiState(
     val isLoading: Boolean = true,
     val filter: ExerciseFilter = ExerciseFilter(),
+    /** Everything else that matches (see [ExerciseFilter.sections]). */
     val exercises: List<Exercise> = emptyList(),
     val totalCount: Int = 0,
-    /** Recently done exercises with when they were last done; empty while searching or filtering. */
+    /** Recently done exercises that match, with when they were last done. */
     val recent: List<Pair<Exercise, Long>> = emptyList(),
-)
+    /** Common gym lifts that match, shown after the recent ones. */
+    val popular: List<Exercise> = emptyList(),
+) {
+    val isEmpty: Boolean get() = exercises.isEmpty() && recent.isEmpty() && popular.isEmpty()
+}
 
-/** How many recently done exercises the list shows above the full library. */
-const val RECENT_EXERCISES = 8
+/** How far back the recent list looks, so a search or muscle filter still finds a few. */
+private const val RECENT_LOOKUP = 200
 
 class ExercisesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -39,16 +44,16 @@ class ExercisesViewModel(application: Application) : AndroidViewModel(applicatio
             repository.observeAll(),
             filter,
             seeded,
-            AppDatabase.getInstance(application).workoutDao().observeRecentExercises(RECENT_EXERCISES),
+            AppDatabase.getInstance(application).workoutDao().observeRecentExercises(RECENT_LOOKUP),
         ) { all, currentFilter, isSeeded, recent ->
-            val byId = all.associateBy { it.id }
-            val browsing = currentFilter.query.isBlank() && !currentFilter.isActive
+            val sections = currentFilter.sections(all, recent)
             ExercisesUiState(
                 isLoading = !isSeeded && all.isEmpty(),
                 filter = currentFilter,
-                exercises = currentFilter.apply(all),
+                exercises = sections.rest,
                 totalCount = all.size,
-                recent = if (browsing) recent.mapNotNull { r -> byId[r.exerciseId]?.let { it to r.lastStartedAt } } else emptyList(),
+                recent = sections.recent,
+                popular = sections.popular,
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ExercisesUiState())
 
